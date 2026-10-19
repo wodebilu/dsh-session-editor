@@ -4,7 +4,7 @@
 
 Adds session deletion and SillyTavern-style direct conversation editing to the DSH Web UI.
 
-> **Deletion is destructive, but reversible for seven days.** A deleted session's directory is moved to a sibling trash folder instead of being erased. Trash entries older than seven days are purged automatically. Editing or deleting a turn replaces the conversation with a new session and sends the original to the trash.
+> **Deletion is permanent: there is no trash and no undo.** A deleted session's log is erased from disk. If you are not sure a session truly has to go, **archive it first**: archiving only hides it from the sidebar, keeps the data, and can be undone at any time.
 
 [中文说明](README.zh-CN.md)
 
@@ -12,15 +12,26 @@ Adds session deletion and SillyTavern-style direct conversation editing to the D
 
 | Action | Where | Behavior |
 |---|---|---|
-| Delete session | Session row `…` menu → **Delete session…** | Resolve and verify the artifact path, archive the session, stop running work, then move its directory to the trash. |
-| Regenerate | Action row under a finalized answer | Confirmation → new session forked before the turn → same prompt resent → open it → original moved to trash. |
-| Edit prompt & resend | Same action row | Confirmation + text editor → new session with the edited prompt → original moved to trash. |
-| Delete this turn and later | Same action row | New session ending before that turn → original moved to trash. |
-| Edit my input | Hover a user message bubble | Copy / edit your own message; same replace-and-trash flow. |
+| Delete session | Session row `…` menu → **Delete session permanently…** | Resolve and verify the artifact path, archive the session, stop running work, then erase its directory from disk. Requires ticking “I understand this cannot be undone”. |
+| Regenerate | Action row under a finalized answer | Confirmation → new session forked before the turn → same prompt resent → open it → original deleted permanently. |
+| Edit prompt & resend | Same action row | Confirmation + text editor → new session with the edited prompt → original deleted permanently. |
+| Delete this turn and later | Same action row | New session ending before that turn → original deleted permanently. |
+| Edit my input | Hover a user message bubble | Copy / edit your own message; same replace-and-delete flow. |
+
+## Delete or archive?
+
+| | Delete | Archive |
+|---|---|---|
+| Session data | Permanently removed from disk | Kept |
+| Can be restored | **No** | Yes — unarchive it |
+| Leaves the sidebar | Yes | Yes |
+| Frees disk space | Yes | No |
+
+Deleting is a decision only you can make. If the only goal is “get this conversation out of my sidebar”, archive it — the data stays, and space is the only thing you save by deleting.
 
 ## How "direct" editing works
 
-DSH session logs are append-only; in-place rewriting is not supported. Each edit therefore creates a replacement session (forked before the target turn, title preserved), opens it, and sends the source session to the trash. The visible result is immediate: the conversation becomes the edited one and the original leaves the sidebar.
+DSH session logs are append-only; in-place rewriting is not supported. Each edit therefore creates a replacement session (forked before the target turn, title preserved), opens it, and permanently deletes the source session. The visible result is immediate: the conversation becomes the edited one and the original leaves the sidebar.
 
 Consequences:
 
@@ -42,21 +53,11 @@ The plugin does **not** guess a path and delete it. Before any state changes it:
      (`sessionPersistence.root`, its `config.root`, `$DSH_HOME/sessions`);
 4. verifies that the directory is exactly one level under a root, is not a symlink, and contains a `session*.jsonl[.zstd]` file;
 5. archives the session through `workspaceRegistry` and, if it is running, cancels it and waits for it to become idle (15 s limit — otherwise nothing is deleted);
-6. calls `sessionPersistence.flush()`, then **renames** the directory into a sibling `dsh-session-editor-trash` folder next to the sessions root (same volume).
+6. calls `sessionPersistence.flush()`, then **erases the directory** from disk.
 
 If any step fails, the session is restored from the archive and the command reports the reason. A failed path lookup happens **before** the archive, so a locate failure leaves the session untouched.
 
-Trash layout:
-
-```text
-<sessions root>/../dsh-session-editor-trash/
-  1760000000000-session-<uuid>/
-    session.v4.jsonl.zstd
-    session-editor-trash.json   # id, cwd, deletedAt, originalPath
-```
-
-To undo within the retention window, move the directory back to
-`<sessions root>/<project>/<session-id>/` and unarchive the session (it was archived during deletion). To reclaim space immediately, delete the trash folder.
+There is no recovery afterwards. If you might want the conversation back, cancel at the confirmation dialog and archive the session instead.
 
 ## Requirements
 
@@ -103,18 +104,17 @@ Earlier builds used the package names `@local/dsh-session-toolkit` or `dsh-sessi
 
 ## Usage
 
-- Delete a session: session row `…` → **Delete session…** → confirm.
+- Delete a session: session row `…` → **Delete session permanently…** → tick the acknowledgement → confirm.
 - Edit or delete a turn: hover the action row under a finalized answer → pencil / trash / regenerate icon → confirm.
 - Edit your own message: hover a user bubble → copy / pencil.
 - Manual delete (from any other session): `/session-editor delete <sessionId>`. The command is also what the menu and the replace flows use.
 
-The delete command is logged as a normal command row. When a session deletes itself (the replace flows), the Host waits for the command lifecycle to become durable, then moves the directory.
+The delete command is logged as a normal command row. When a session deletes itself (the replace flows), the Host waits for the command lifecycle to become durable, then erases the directory.
 
 ## Configuration
 
-No configuration is required. Two constants are intentionally fixed rather than exposed:
+No configuration is required. One constant is intentionally fixed rather than exposed:
 
-- trash retention: seven days;
 - maximum wait for a running session to stop: 15 seconds.
 
 ## Compatibility and risks

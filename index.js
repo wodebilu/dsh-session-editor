@@ -6,13 +6,15 @@
  * edit-and-resend / drop-turn) are implemented by the Client half on top of the
  * supported fork + prompt APIs.
  *
- * Deletion is deliberately conservative:
+ * Deletion is permanent and deliberately conservative — there is no trash:
  *  - the artifact path is resolved *before* any state change, through several
  *    independent fallbacks, and refused when it cannot be verified;
  *  - a running Session is archived, stopped, and awaited before its directory
  *    is touched;
- *  - the directory is moved to a sibling trash root (same volume) instead of
- *    being erased, and trash older than seven days is purged lazily.
+ *  - only then is the session directory erased from disk.
+ *
+ * Users who merely want a conversation out of the sidebar should archive it
+ * instead: archiving keeps the data and can be undone.
  *
  * The Host APIs used here are `sessionPersistence` (stat / list / flush and,
  * when present, the backend's `listArtifacts` / `locate` / `root`),
@@ -20,7 +22,7 @@
  * No third-party runtime dependency is required.
  */
 
-import { lstat, mkdir, readdir, rename, rm, stat as statFile, writeFile } from 'node:fs/promises'
+import { lstat, readdir, rm, stat as statFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 
@@ -30,8 +32,6 @@ export const name = 'session-editor'
 /** Services this plugin cannot work without. */
 export const inject = ['commands', 'agents', 'sessionPersistence']
 
-const TRASH_DIR_NAME = 'dsh-session-editor-trash'
-const TRASH_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 const STOP_WAIT_MS = 15_000
 const FINALIZE_WAIT_MS = 5_000
 const SEQ_POLL_MS = 25
@@ -59,7 +59,7 @@ class ToolkitError extends Error {
 }
 
 /**
- * Register the `/session-toolkit` command.
+ * Register the `/session-editor` command.
  * @param ctx - owning plugin context.
  */
 export function apply(ctx) {
@@ -67,7 +67,7 @@ export function apply(ctx) {
     try {
       return ctx.commands.register({
         name: 'session-editor',
-        description: '会话编辑器：删除指定会话的本地记录（移入回收站，七天）',
+        description: '会话编辑器：永久删除指定会话的本地记录（不可恢复）',
         input: { hint: 'delete <sessionId>' },
         handler: (invocation) => handleCommand(ctx, invocation),
       })
@@ -150,17 +150,17 @@ async function deleteSession(ctx, agent, sessionId) {
 
   const self = agent !== undefined && agent.id === sessionId
   if (self) {
-    scheduleSelfFinalize(ctx, { sessionId, header, artifact, live, prepared })
-    return `会话 ${sessionId} 正在删除（回收站保留七天）`
+    scheduleSelfFinalize(ctx, { sessionId, artifact, live, prepared })
+    return `会话 ${sessionId} 正在永久删除`
   }
 
   try {
-    await finalizeDeletion(ctx, { sessionId, header, artifact })
+    await finalizeDeletion(ctx, { sessionId, artifact })
   } catch (error) {
     if (prepared.archived) await unarchive(ctx, sessionId)
     throw error
   }
-  return `已删除会话 ${sessionId}${header.cwd === undefined ? '' : `（${header.cwd}）`}，可在回收站保留七天`
+  return `已永久删除会话 ${sessionId}${header.cwd === undefined ? '' : `（${header.cwd}）`}；如只是想让会话从列表消失，下次可使用「归档」`
 }
 
 /**
@@ -202,22 +202,20 @@ async function prepareDeletion(ctx, sessionId, live, running) {
 }
 
 /**
- * Move the artifact into the trash root and announce the removal.
+ * Erase the verified session directory and announce the removal.
  * @param ctx - owning plugin context.
- * @param job - Session id, header, and resolved artifact.
- * @returns the trash path.
+ * @param job - Session id and resolved artifact.
  */
 async function finalizeDeletion(ctx, job) {
-  const trashPath = await moveToTrash(job.artifact, job.sessionId, job.header)
+  await deleteArtifact(job.artifact, job.sessionId)
   safeEmit(ctx, 'api-session/removed', job.sessionId)
-  return trashPath
 }
 
 /**
- * Defer the artifact move until the command plane has appended `command/done`
- * (the command runs inside the Session it deletes, so an immediate move would
- * race that append). If the lifecycle never settles, the Session is restored
- * and nothing is deleted.
+ * Defer the artifact removal until the command plane has appended
+ * `command/done` (the command runs inside the Session it deletes, so an
+ * immediate removal would race that append). If the lifecycle never settles,
+ * the Session is restored and nothing is deleted.
  * @param ctx - owning plugin context.
  * @param job - deletion job plus the prepared state.
  */
@@ -239,7 +237,7 @@ function scheduleSelfFinalize(ctx, job) {
       try {
         await ctx.sessionPersistence.flush()
       } catch {
-        // Best effort; the move below is what the caller asked for.
+        // Best effort; the removal below is what the caller asked for.
       }
       await finalizeDeletion(ctx, job)
     } catch (error) {
@@ -517,70 +515,22 @@ async function findLogName(directory) {
 }
 
 /**
- * Move one verified session directory into the sibling trash root.
+ * Permanently erase one verified session directory.
  * @param artifact - verified artifact path and root.
  * @param sessionId - Session being deleted.
- * @param header - stored Session header (kept as trash metadata).
- * @returns the trash entry path.
  */
-async function moveToTrash(artifact, sessionId, header) {
+async function deleteArtifact(artifact, sessionId) {
   const directory = dirname(artifact.path)
   await assertSessionDirectory(directory, sessionId, artifact.root)
-  const trashRoot = join(dirname(artifact.root), TRASH_DIR_NAME)
-  await mkdir(trashRoot, { recursive: true })
-  const stamp = Date.now()
-  const target = join(trashRoot, `${stamp}-${sessionId}`)
   try {
-    await rename(directory, target)
+    await rm(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 80 })
   } catch (error) {
-    throw new ToolkitError('MOVE_FAILED', `无法移动会话目录：${describe(error)}`)
+    throw new ToolkitError('DELETE_FAILED', `无法删除会话目录：${describe(error)}`)
   }
-  const metadata = {
-    id: sessionId,
-    cwd: header?.cwd ?? null,
-    parentSession: header?.parentSession ?? null,
-    deletedAt: new Date(stamp).toISOString(),
-    originalPath: directory,
-    retentionDays: Math.round(TRASH_RETENTION_MS / 86_400_000),
+  const remaining = await lstat(directory).then(() => true, () => false)
+  if (remaining) {
+    throw new ToolkitError('DELETE_FAILED', `会话目录仍然存在：${directory}`)
   }
-  try {
-    await writeFile(join(target, 'session-editor-trash.json'), `${JSON.stringify(metadata, null, 2)}\n`)
-  } catch {
-    // Metadata is a convenience; the directory move already succeeded.
-  }
-  await purgeTrashDir(trashRoot, TRASH_RETENTION_MS)
-  return target
-}
-
-/**
- * Delete trash entries older than the retention window.
- * @param trashRoot - trash directory.
- * @param retentionMs - age after which an entry is purged.
- * @returns the number of entries removed.
- */
-async function purgeTrashDir(trashRoot, retentionMs) {
-  let entries
-  try {
-    entries = await readdir(trashRoot, { withFileTypes: true })
-  } catch {
-    return 0
-  }
-  const now = Date.now()
-  let removed = 0
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue
-    const match = /^(\d{13})-/.exec(entry.name)
-    if (match === null) continue
-    const stamp = Number(match[1])
-    if (!Number.isFinite(stamp) || now - stamp < retentionMs) continue
-    try {
-      await rm(join(trashRoot, entry.name), { recursive: true, force: true })
-      removed += 1
-    } catch {
-      // A locked entry is retried on a later deletion.
-    }
-  }
-  return removed
 }
 
 /**
@@ -659,9 +609,8 @@ function delay(ms) {
 export const __internals = {
   ToolkitError,
   candidateRoots,
+  deleteArtifact,
   deleteSession,
   locateArtifact,
-  moveToTrash,
-  purgeTrashDir,
   validateArtifactPath,
 }

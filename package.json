@@ -1,7 +1,7 @@
 {
   "name": "dsh-session-editor",
-  "version": "0.1.0",
-  "description": "Unofficial DSH plugin: delete sessions safely (trash + retention), regenerate or edit a turn, and edit your own messages.",
+  "version": "0.1.1",
+  "description": "Unofficial DSH plugin: permanently delete sessions, regenerate or edit a turn, and edit your own messages.",
   "license": "MIT",
   "author": "wodebilu",
   "repository": {

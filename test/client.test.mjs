@@ -194,4 +194,14 @@ dialogView = overlayEl.children[0].children[0]
 assert.equal(dialogView.props.dialog.kind, 'delete-session')
 assert.equal(dialogView.props.dialog.runnerId, 'session-current')
 
+/** The permanent-delete dialog keeps its confirm disabled until the box is ticked. */
+const deleteContent = dialogView.type(dialogView.props)
+const ackLabel = deleteContent.children.find((child) => child && child.props && child.props.className === 'sed-ack')
+assert.ok(ackLabel, 'acknowledgement checkbox missing')
+assert.equal(ackLabel.children[0].props.type, 'checkbox')
+assert.equal(ackLabel.children[0].props.checked, false)
+const deleteFooter = deleteContent.children.find((child) => child && child.props && child.props.className === 'sed-footer')
+const confirmButton = deleteFooter.children[1]
+assert.equal(confirmButton.props.disabled, true, 'confirm enabled before acknowledgement')
+
 console.log('session-editor client tests OK')

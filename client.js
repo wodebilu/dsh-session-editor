@@ -2,8 +2,8 @@
  * Session Editor — browser half.
  *
  * Three entry points:
- *  - a Session-row menu action that deletes that Session through the Host
- *    command (which moves the artifact to a trash directory);
+ *  - a Session-row menu action that permanently deletes that Session through
+ *    the Host command (no trash; archiving is the undoable alternative);
  *  - per-answer actions that regenerate, edit the prompt, or drop the turn by
  *    forking the Session before it and reopening the child;
  *  - one overlay that owns the confirmation/edit dialogs and the result toast.
@@ -42,6 +42,9 @@ window.__ModuleLoader__.load({
 .sed-textarea{box-sizing:border-box;width:100%;min-height:140px;max-height:40vh;resize:vertical;padding:10px 12px;border-radius:10px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px}
 .sed-textarea:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .sed-error{margin:10px 0 0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary);word-break:break-word}
+.sed-ack{display:flex;align-items:flex-start;gap:8px;margin:12px 0 0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary);cursor:pointer;user-select:none}
+.sed-ack input{margin:3px 0 0;accent-color:var(--dsw-alias-state-error-primary);cursor:pointer}
+.sed-ack input:disabled{cursor:default}
 .sed-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:16px}
 .sed-btn{height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;cursor:pointer}
 .sed-btn:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2)}
@@ -65,19 +68,21 @@ window.__ModuleLoader__.load({
       'action.editUser': '编辑我的输入',
       'action.copy': '复制',
       'toast.copied': '已复制',
-      'menu.deleteSession': '删除会话…',
-      'dialog.deleteSession.title': '删除会话',
-      'dialog.deleteSession.body': '将删除会话「{title}」在本机的全部记录。',
-      'dialog.deleteSession.warning': '会话目录会被移入回收站，默认保留七天；进行中的回答会先被停止。',
+      'menu.deleteSession': '永久删除会话…',
+      'dialog.deleteSession.title': '永久删除会话',
+      'dialog.deleteSession.body': '将永久删除会话「{title}」在本机的全部记录，此操作不可恢复。',
+      'dialog.deleteSession.warning': '会话日志会从磁盘直接移除，没有回收站。进行中的回答会先被停止。',
+      'dialog.deleteSession.advice': '如果只是想让这个会话从列表里消失，请先取消，改用会话行「…」菜单里的「归档」：归档只把会话移出列表，数据仍然保留，可以随时恢复。',
+      'dialog.deleteSession.ack': '我已了解，删除后无法恢复',
       'dialog.edit.title': '编辑提问并重发',
-      'dialog.edit.body': '保存后会用新的提问重新生成，原会话移入回收站；只保留修改后的对话。',
+      'dialog.edit.body': '保存后会用新的提问重新生成，原会话将被永久删除；只保留修改后的对话。',
       'dialog.edit.submit': '保存并替换原会话',
       'dialog.deleteTurn.title': '删除此轮及之后',
-      'dialog.deleteTurn.body': '确认后会删除该轮及之后的全部对话，原会话移入回收站；只保留之前的对话。',
+      'dialog.deleteTurn.body': '确认后会删除该轮及之后的全部对话，原会话将被永久删除；只保留之前的对话。',
       'dialog.deleteTurn.submit': '删除并替换原会话',
       'dialog.deleteTurn.turn': '第 {turn} 轮对话',
       'dialog.regenerate.title': '重新生成',
-      'dialog.regenerate.body': '将重新生成这一轮的回答，原会话移入回收站；只保留重新生成的对话。',
+      'dialog.regenerate.body': '将重新生成这一轮的回答，原会话将被永久删除；只保留重新生成的对话。',
       'dialog.regenerate.submit': '重新生成并替换原会话',
       'common.cancel': '取消',
       'common.delete': '删除',
@@ -103,19 +108,21 @@ window.__ModuleLoader__.load({
       'action.editUser': 'Edit my input',
       'action.copy': 'Copy',
       'toast.copied': 'Copied',
-      'menu.deleteSession': 'Delete session…',
-      'dialog.deleteSession.title': 'Delete session',
-      'dialog.deleteSession.body': 'Delete every local record of “{title}”.',
-      'dialog.deleteSession.warning': 'The session directory is moved to the trash and kept for seven days by default; running work is stopped first.',
+      'menu.deleteSession': 'Delete session permanently…',
+      'dialog.deleteSession.title': 'Permanently delete session',
+      'dialog.deleteSession.body': 'Permanently delete every local record of “{title}”. This cannot be undone.',
+      'dialog.deleteSession.warning': 'The session log is removed from disk directly; there is no trash. Running work is stopped first.',
+      'dialog.deleteSession.advice': 'If you only want this conversation gone from the sidebar, cancel and use “Archive” in the session row “…” menu instead: archiving hides the session but keeps its data, and it can be restored at any time.',
+      'dialog.deleteSession.ack': 'I understand this cannot be undone',
       'dialog.edit.title': 'Edit prompt and resend',
-      'dialog.edit.body': 'Saving asks again with the edited prompt and moves the original session to the trash, keeping only the edited conversation.',
+      'dialog.edit.body': 'Saving asks again with the edited prompt and permanently deletes the original session, keeping only the edited conversation.',
       'dialog.edit.submit': 'Save and replace the session',
       'dialog.deleteTurn.title': 'Delete this turn and later ones',
-      'dialog.deleteTurn.body': 'This deletes this turn and everything after it, moves the original session to the trash, and keeps only the earlier conversation.',
+      'dialog.deleteTurn.body': 'This deletes this turn and everything after it, permanently deletes the original session, and keeps only the earlier conversation.',
       'dialog.deleteTurn.submit': 'Delete and replace the session',
       'dialog.deleteTurn.turn': 'Turn {turn}',
       'dialog.regenerate.title': 'Regenerate',
-      'dialog.regenerate.body': 'This regenerates this turn’s answer and moves the original session to the trash, keeping only the regenerated conversation.',
+      'dialog.regenerate.body': 'This regenerates this turn’s answer and permanently deletes the original session, keeping only the regenerated conversation.',
       'dialog.regenerate.submit': 'Regenerate and replace the session',
       'common.cancel': 'Cancel',
       'common.delete': 'Delete',
@@ -672,14 +679,28 @@ window.__ModuleLoader__.load({
       function DialogView(props) {
         const dialog = props.dialog
         const [text, setText] = React.useState(dialog.text === undefined ? '' : dialog.text)
+        const [acked, setAcked] = React.useState(false)
         const busy = dialog.busy === true
         const editing = dialog.kind === 'edit-message'
+        const deleting = dialog.kind === 'delete-session'
         let body
-        if (dialog.kind === 'delete-session') {
+        if (deleting) {
           body = [
             h('p', { key: 'body', className: 'sed-text' }, props.t('dialog.deleteSession.body', { title: dialog.title })),
             h('div', { key: 'id', className: 'sed-text' }, h('span', { className: 'sed-code' }, dialog.sessionId)),
             h('p', { key: 'warn', className: 'sed-warning' }, props.t('dialog.deleteSession.warning')),
+            h('p', { key: 'advice', className: 'sed-text' }, props.t('dialog.deleteSession.advice')),
+            h(
+              'label',
+              { key: 'ack', className: 'sed-ack' },
+              h('input', {
+                type: 'checkbox',
+                checked: acked,
+                disabled: busy,
+                onChange: (event) => setAcked(event.target.checked),
+              }),
+              h('span', null, props.t('dialog.deleteSession.ack')),
+            ),
           ]
         } else if (dialog.kind === 'edit-message') {
           body = [
@@ -769,7 +790,7 @@ window.__ModuleLoader__.load({
                 type: 'button',
                 className: 'sed-btn',
                 'data-kind': dialog.kind === 'edit-message' ? 'primary' : 'danger',
-                disabled: busy,
+                disabled: busy || (deleting && !acked),
                 onClick: () => submitDialog(editing ? { ...dialog, text } : dialog),
               },
               busy ? props.t('common.working') : submitLabel,

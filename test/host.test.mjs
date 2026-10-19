@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { apply, __internals } from '../index.js'
 
-const { purgeTrashDir, moveToTrash } = __internals
+const { deleteArtifact } = __internals
 const TRASH = 'dsh-session-editor-trash'
 const LOG = 'session.v4.jsonl.zstd'
 
@@ -101,14 +101,14 @@ function run(definition, rawInput, agent) {
   })
   const result = await run(definition, 'delete session-a', { id: 'session-runner' })
   assert.equal(result.kind, 'success', JSON.stringify(result))
-  assert.deepEqual(
+  assert.match(result.text, /永久删除/)
+  assert.equal(
     await readdir(store.directory).then(() => true, () => false),
     false,
     'session directory survived',
   )
-  const trashEntries = await readdir(join(dirname(store.root), TRASH))
-  assert.equal(trashEntries.length, 1)
-  assert.match(trashEntries[0], /^\d{13}-session-a$/)
+  // Permanent deletion leaves nothing behind: no trash directory next to the root.
+  assert.equal(await stat(join(dirname(store.root), TRASH)).then(() => true, () => false), false)
   assert.deepEqual(calls.emitted, [['api-session/removed', 'session-a']])
   assert.equal(calls.archived.length, 1)
   assert.ok(calls.flushed >= 1)
@@ -195,7 +195,7 @@ function run(definition, rawInput, agent) {
   })
   const result = await run(definition, 'delete session-self', { id: 'session-self' })
   assert.equal(result.kind, 'success')
-  assert.match(result.text, /正在删除/)
+  assert.match(result.text, /正在永久删除/)
   setTimeout(() => {
     live.session.seq += 1
   }, 10)
@@ -247,28 +247,14 @@ function run(definition, rawInput, agent) {
   assert.match(result.text, /用法/)
 }
 
-/** Test 10: trash purge removes only entries past the retention window. */
-{
-  const base = await mkdtemp(join(tmpdir(), 'sed-trash-'))
-  const oldEntry = join(base, `${Date.now() - 8 * 24 * 60 * 60 * 1000}-session-old`)
-  const newEntry = join(base, `${Date.now()}-session-new`)
-  await mkdir(oldEntry)
-  await mkdir(newEntry)
-  const removed = await purgeTrashDir(base, 7 * 24 * 60 * 60 * 1000)
-  assert.equal(removed, 1)
-  assert.equal(await stat(oldEntry).then(() => true, () => false), false)
-  assert.equal(await stat(newEntry).then(() => true, () => false), true)
-  await rm(base, { recursive: true, force: true })
-}
-
-/** Test 11: a directory that is not directly under the verified root is refused. */
+/** Test 10: a refused deletion leaves the directory intact. */
 {
   const store = await makeStore('session-escape')
   const otherBase = await mkdtemp(join(tmpdir(), 'sed-other-'))
   const otherRoot = join(otherBase, 'sessions')
   await mkdir(otherRoot, { recursive: true })
   await assert.rejects(
-    moveToTrash({ path: store.path, root: otherRoot }, 'session-escape', {}),
+    deleteArtifact({ path: store.path, root: otherRoot }, 'session-escape'),
     /拒绝删除/,
   )
   assert.equal(await stat(store.directory).then(() => true, () => false), true)
