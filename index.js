@@ -60,22 +60,19 @@ class ToolkitError extends Error {
 
 /**
  * Register the `/session-editor` command.
+ *
+ * This deliberately does not swallow failures: a command that never reaches
+ * the registry is indistinguishable from a missing plugin at the UI, so the
+ * error must surface as a load-time failure instead of a silent no-op.
  * @param ctx - owning plugin context.
  */
 export function apply(ctx) {
-  ctx.effect(() => {
-    try {
-      return ctx.commands.register({
-        name: 'session-editor',
-        description: '会话编辑器：永久删除指定会话的本地记录（不可恢复）',
-        input: { hint: 'delete <sessionId>' },
-        handler: (invocation) => handleCommand(ctx, invocation),
-      })
-    } catch (error) {
-      console.warn('session-editor: could not register /session-editor', error)
-      return () => {}
-    }
-  }, 'session-editor command')
+  ctx.commands.register({
+    name: 'session-editor',
+    description: '会话编辑器：永久删除指定会话的本地记录（不可恢复）',
+    input: { hint: 'delete <sessionId>' },
+    handler: (invocation) => handleCommand(ctx, invocation),
+  })
 }
 
 /**
