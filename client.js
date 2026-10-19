@@ -432,7 +432,7 @@ window.__ModuleLoader__.load({
         try {
           response = await ctx.remote.commands.execute(
             dialog.runnerId,
-            `/session-toolkit delete ${dialog.sessionId}`,
+            `/session-editor delete ${dialog.sessionId}`,
             [],
           )
         } catch (error) {

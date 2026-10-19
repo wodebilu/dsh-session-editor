@@ -152,17 +152,19 @@ function run(definition, rawInput, agent) {
   }
 }
 
-/** Test 4: a subagent session is refused before any state change. */
+/** Test 4: a subagent session is deletable like any other stored session. */
 {
   const store = await makeStore('session-sub')
+  const header = { id: 'session-sub', origin: 'subagent' }
   const { calls, definition } = makeContext({
     root: store.root,
-    snapshots: [{ header: { id: 'session-sub', origin: 'subagent' } }],
+    snapshots: [{ header }],
+    artifacts: [{ header, path: store.path }],
   })
   const result = await run(definition, 'delete session-sub', { id: 'session-runner' })
-  assert.equal(result.kind, 'error')
-  assert.match(result.text, /子代理/)
-  assert.equal(calls.archived.length, 0)
+  assert.equal(result.kind, 'success', JSON.stringify(result))
+  assert.equal(await stat(store.directory).then(() => true, () => false), false, 'subagent directory survived')
+  assert.equal(calls.archived.length, 1)
   await rm(store.base, { recursive: true, force: true })
 }
 

@@ -126,16 +126,15 @@ async function deleteSession(ctx, agent, sessionId) {
   }
 
   const header = snapshot.header ?? {}
-  if (header.origin === 'subagent') {
-    throw new ToolkitError('SUBAGENT', '这是子代理会话；请通过它的父会话处理')
-  }
 
-  const children = await inspectChildren(persistence, sessionId)
-  if (children.subagents > 0) {
-    throw new ToolkitError(
-      'SUBAGENT_CHILDREN',
-      `仍有 ${children.subagents} 个子代理会话引用它，请先处理这些子代理`,
-    )
+  if (header.origin !== 'subagent') {
+    const children = await inspectChildren(persistence, sessionId)
+    if (children.subagents > 0) {
+      throw new ToolkitError(
+        'SUBAGENT_CHILDREN',
+        `仍有 ${children.subagents} 个子代理会话引用它，请先处理这些子代理`,
+      )
+    }
   }
 
   // Resolve first: a failed lookup must leave the Session untouched.
