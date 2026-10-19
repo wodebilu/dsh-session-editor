@@ -1,0 +1,59 @@
+{
+  "name": "dsh-session-toolkit",
+  "version": "1.0.0",
+  "description": "Unofficial DSH plugin: delete sessions, regenerate or edit a turn (replacing the original session), and edit your own messages.",
+  "license": "MIT",
+  "author": "Your Name",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-name/dsh-session-toolkit.git"
+  },
+  "homepage": "https://github.com/your-name/dsh-session-toolkit#readme",
+  "bugs": {
+    "url": "https://github.com/your-name/dsh-session-toolkit/issues"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "session",
+    "chat",
+    "conversation",
+    "sillytavern"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test/host-smoke.mjs && node test/client-smoke.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-chat",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  }
+}

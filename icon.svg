@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Session Toolkit">
+  <defs>
+    <linearGradient id="stkBubble" x1="8" y1="6" x2="46" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3f9de0"/>
+      <stop offset="1" stop-color="#1f5fa8"/>
+    </linearGradient>
+  </defs>
+  <path d="M12 10h34a8 8 0 0 1 8 8v18a8 8 0 0 1-8 8H28l-11 9v-9h-5a8 8 0 0 1-8-8V18a8 8 0 0 1 8-8z" fill="url(#stkBubble)"/>
+  <circle cx="20" cy="27" r="3.2" fill="#eaf4ff"/>
+  <circle cx="29" cy="27" r="3.2" fill="#eaf4ff"/>
+  <circle cx="38" cy="27" r="3.2" fill="#eaf4ff"/>
+  <circle cx="49" cy="47" r="13" fill="#e5484d"/>
+  <path d="M43.5 47h11" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>
+</svg>

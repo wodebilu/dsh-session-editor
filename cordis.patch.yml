@@ -1,0 +1,7 @@
+# Session Toolkit
+#
+# Inserts the Host half. The Client half is discovered from `dsh.client` in
+# package.json, so no separate row is needed for it.
+- insert:
+    - id: session-toolkit
+      name: 'dsh-session-toolkit'
