@@ -42,10 +42,10 @@ Consequences:
 2. Paste the repository address:
 
    ```text
-   https://github.com/your-name/dsh-session-toolkit
+   https://github.com/wodebilu/dsh-session-toolkit
    ```
 
-   or `github:your-name/dsh-session-toolkit`.
+   or `github:wodebilu/dsh-session-toolkit`.
 3. Install, then restart DSH once.
 
 ### From a local folder or ZIP
