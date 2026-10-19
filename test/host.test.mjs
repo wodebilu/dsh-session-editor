@@ -207,7 +207,7 @@ function run(definition, rawInput, agent) {
   await rm(store.base, { recursive: true, force: true })
 }
 
-/** Test 7: a running session is archived with stopActivity and awaited. */
+/** Test 7: a running session is stopped, erased, then archived to hide the row. */
 {
   const store = await makeStore('session-running')
   let idleResolved = false
@@ -229,11 +229,32 @@ function run(definition, rawInput, agent) {
   const result = await run(definition, 'delete session-running', { id: 'session-runner' })
   assert.equal(result.kind, 'success', JSON.stringify(result))
   assert.equal(idleResolved, true)
-  assert.deepEqual(calls.archived, [['session-running', { stopActivity: true }]])
+  // First archive stops the work; the second one hides the row after the file erase.
+  assert.deepEqual(calls.archived, [
+    ['session-running', { stopActivity: true }],
+    ['session-running', undefined],
+  ])
+  assert.equal(await stat(store.directory).then(() => true, () => false), false, 'running directory survived')
   await rm(store.base, { recursive: true, force: true })
 }
 
-/** Test 8: an id that could escape the sessions root is refused. */
+/** Test 8: an ordinary session is erased and then archived exactly once. */
+{
+  const store = await makeStore('session-order')
+  const header = { id: 'session-order' }
+  const ctxHolder = makeContext({
+    root: store.root,
+    snapshots: [{ header }],
+    artifacts: [{ header, path: store.path }],
+  })
+  const result = await run(ctxHolder.definition, 'delete session-order', { id: 'session-runner' })
+  assert.equal(result.kind, 'success', JSON.stringify(result))
+  assert.deepEqual(ctxHolder.calls.archived, [['session-order', undefined]])
+  assert.equal(await stat(store.directory).then(() => true, () => false), false)
+  await rm(store.base, { recursive: true, force: true })
+}
+
+/** Test 9: an id that could escape the sessions root is refused. */
 {
   const { calls, definition } = makeContext({ root: undefined, snapshots: [] })
   const result = await run(definition, 'delete ..\\..\\evil', { id: 'session-runner' })
@@ -241,7 +262,7 @@ function run(definition, rawInput, agent) {
   assert.equal(calls.archived.length, 0)
 }
 
-/** Test 9: missing usage is reported, not thrown. */
+/** Test 10: missing usage is reported, not thrown. */
 {
   const { definition } = makeContext({ root: undefined, snapshots: [] })
   const result = await run(definition, 'nonsense', { id: 'session-runner' })
@@ -249,7 +270,7 @@ function run(definition, rawInput, agent) {
   assert.match(result.text, /用法/)
 }
 
-/** Test 10: a refused deletion leaves the directory intact. */
+/** Test 11: a refused deletion leaves the directory intact. */
 {
   const store = await makeStore('session-escape')
   const otherBase = await mkdtemp(join(tmpdir(), 'sed-other-'))

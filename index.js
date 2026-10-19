@@ -142,43 +142,40 @@ async function deleteSession(ctx, agent, sessionId) {
 
   const live = ctx.agents.get(sessionId)
   const running = live !== undefined && live.status === 'running'
-  const prepared = await prepareDeletion(ctx, sessionId, live, running)
+  const stopped = await stopSession(ctx, sessionId, live, running)
 
   const self = agent !== undefined && agent.id === sessionId
   if (self) {
-    scheduleSelfFinalize(ctx, { sessionId, artifact, live, prepared })
+    scheduleSelfFinalize(ctx, { sessionId, artifact, live, stopped })
     return `会话 ${sessionId} 正在永久删除`
   }
 
-  try {
-    await finalizeDeletion(ctx, { sessionId, artifact })
-  } catch (error) {
-    if (prepared.archived) await unarchive(ctx, sessionId)
-    throw error
-  }
+  await finalizeDeletion(ctx, { sessionId, artifact })
   return `已永久删除会话 ${sessionId}${header.cwd === undefined ? '' : `（${header.cwd}）`}；如只是想让会话从列表消失，下次可使用「归档」`
 }
 
 /**
- * Archive and quiesce a Session before its directory is moved.
+ * Stop a running Session and wait for the durability barrier, without
+ * archiving it yet: archiving hides a row from the sidebar, so it may only
+ * happen once the files are actually gone.
  * @param ctx - owning plugin context.
  * @param sessionId - Session to stop.
  * @param live - live Agent for that Session, when present.
  * @param running - whether the Agent is currently executing.
- * @returns whether the Session was archived.
+ * @returns nothing; throws when the Session will not become idle.
  */
-async function prepareDeletion(ctx, sessionId, live, running) {
-  let archived = false
-  const registry = ctx.get('workspaceRegistry')
-  if (registry !== undefined && typeof registry.archiveSession === 'function') {
-    try {
-      await registry.archiveSession(sessionId, running ? { stopActivity: true } : undefined)
-      archived = true
-    } catch {
-      // Not a Workspace member, already archived, or no registry: deletion is still valid.
-    }
-  }
+async function stopSession(ctx, sessionId, live, running) {
   if (running) {
+    const registry = ctx.get('workspaceRegistry')
+    let archived = false
+    if (registry !== undefined && typeof registry.archiveSession === 'function') {
+      try {
+        await registry.archiveSession(sessionId, { stopActivity: true })
+        archived = true
+      } catch {
+        // Not a Workspace member, already archived, or no registry: stop manually.
+      }
+    }
     if (!archived && live !== undefined && typeof live.cancel === 'function') {
       try {
         live.cancel({ kind: 'user' })
@@ -186,7 +183,12 @@ async function prepareDeletion(ctx, sessionId, live, running) {
         // Cancellation is best-effort; the idle wait below is the real gate.
       }
     }
-    await waitForIdle(live, STOP_WAIT_MS)
+    try {
+      await waitForIdle(live, STOP_WAIT_MS)
+    } catch (error) {
+      if (archived) await unarchive(ctx, sessionId)
+      throw error
+    }
   }
   // Durability barrier: no write handle for this Session should be mid-append.
   try {
@@ -194,17 +196,40 @@ async function prepareDeletion(ctx, sessionId, live, running) {
   } catch {
     // An unrelated Session's flush failure must not block this deletion.
   }
-  return { archived }
 }
 
 /**
- * Erase the verified session directory and announce the removal.
+ * Erase the verified session directory, then archive the row so the sidebar
+ * drops it immediately, then announce the removal.
+ *
+ * Order matters: the file erase comes first, so a later archive that fails or
+ * is ignored by the client can never leave a hidden row pointing at a log
+ * that still exists. Archiving is what makes the row disappear without a
+ * restart; the Session id itself leaves the workspace registry on the next
+ * DSH start, when the registry is rebuilt from disk.
  * @param ctx - owning plugin context.
  * @param job - Session id and resolved artifact.
  */
 async function finalizeDeletion(ctx, job) {
   await deleteArtifact(job.artifact, job.sessionId)
+  await archiveAfterDelete(ctx, job.sessionId)
   safeEmit(ctx, 'api-session/removed', job.sessionId)
+}
+
+/**
+ * Hide one already-erased Session from the sidebar. Failures are reported
+ * but never undo the deletion.
+ * @param ctx - owning plugin context.
+ * @param sessionId - Session whose files are already gone.
+ */
+async function archiveAfterDelete(ctx, sessionId) {
+  const registry = ctx.get('workspaceRegistry')
+  if (registry === undefined || typeof registry.archiveSession !== 'function') return
+  try {
+    await registry.archiveSession(sessionId)
+  } catch (error) {
+    console.warn(`session-editor: files deleted but archiving ${sessionId} failed`, error)
+  }
 }
 
 /**
@@ -237,7 +262,6 @@ function scheduleSelfFinalize(ctx, job) {
       }
       await finalizeDeletion(ctx, job)
     } catch (error) {
-      if (job.prepared.archived) await unarchive(ctx, job.sessionId)
       console.warn(`session-editor: could not finish deleting ${job.sessionId}`, error)
     }
   }
