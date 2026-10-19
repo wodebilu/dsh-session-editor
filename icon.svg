@@ -1,14 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Session Toolkit">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Session Editor">
   <defs>
-    <linearGradient id="stkBubble" x1="8" y1="6" x2="46" y2="46" gradientUnits="userSpaceOnUse">
+    <linearGradient id="sedBg" x1="6" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#3f9de0"/>
       <stop offset="1" stop-color="#1f5fa8"/>
     </linearGradient>
   </defs>
-  <path d="M12 10h34a8 8 0 0 1 8 8v18a8 8 0 0 1-8 8H28l-11 9v-9h-5a8 8 0 0 1-8-8V18a8 8 0 0 1 8-8z" fill="url(#stkBubble)"/>
-  <circle cx="20" cy="27" r="3.2" fill="#eaf4ff"/>
-  <circle cx="29" cy="27" r="3.2" fill="#eaf4ff"/>
-  <circle cx="38" cy="27" r="3.2" fill="#eaf4ff"/>
-  <circle cx="49" cy="47" r="13" fill="#e5484d"/>
-  <path d="M43.5 47h11" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#sedBg)"/>
+  <path d="M18 19h28a4 4 0 0 1 4 4v15a4 4 0 0 1-4 4H32l-9 8v-8h-5a4 4 0 0 1-4-4V23a4 4 0 0 1 4-4z" fill="#f7fbff"/>
+  <path d="M25 28h14M25 34h9" stroke="#1f5fa8" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="47" cy="47" r="12" fill="#e5484d"/>
+  <path d="M42 47h10" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
 </svg>

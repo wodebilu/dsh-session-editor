@@ -1,16 +1,16 @@
 {
-  "name": "dsh-session-toolkit",
-  "version": "1.0.0",
-  "description": "Unofficial DSH plugin: delete sessions, regenerate or edit a turn (replacing the original session), and edit your own messages.",
+  "name": "dsh-session-editor",
+  "version": "0.1.0",
+  "description": "Unofficial DSH plugin: delete sessions safely (trash + retention), regenerate or edit a turn, and edit your own messages.",
   "license": "MIT",
-  "author": "Your Name",
+  "author": "wodebilu",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-name/dsh-session-toolkit.git"
+    "url": "git+https://github.com/wodebilu/dsh-session-toolkit.git"
   },
-  "homepage": "https://github.com/your-name/dsh-session-toolkit#readme",
+  "homepage": "https://github.com/wodebilu/dsh-session-toolkit#readme",
   "bugs": {
-    "url": "https://github.com/your-name/dsh-session-toolkit/issues"
+    "url": "https://github.com/wodebilu/dsh-session-toolkit/issues"
   },
   "keywords": [
     "dsh",
@@ -18,10 +18,10 @@
     "plugin",
     "session",
     "chat",
-    "conversation",
-    "sillytavern"
+    "conversation"
   ],
   "type": "module",
+  "main": "index.js",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -36,10 +36,16 @@
     "icon.svg",
     "README.md",
     "README.zh-CN.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md",
+    "test/*.mjs"
   ],
   "scripts": {
-    "test": "node test/host-smoke.mjs && node test/client-smoke.mjs"
+    "test": "node test/host.test.mjs && node test/client.test.mjs",
+    "check": "node --check index.js && node --check client.js"
+  },
+  "engines": {
+    "node": ">=22"
   },
   "dsh": {
     "bundle": {

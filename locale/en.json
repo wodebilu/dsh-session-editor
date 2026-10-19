@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Session Toolkit",
-    "description": "Delete sessions, replace a turn by regenerating or editing it, and edit your own messages."
+    "title": "Session Editor",
+    "description": "Delete sessions safely (trash with retention), regenerate or edit a turn, and edit your own input."
   }
 }

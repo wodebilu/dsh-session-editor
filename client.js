@@ -1,19 +1,19 @@
 /**
- * Session Toolkit — browser half.
+ * Session Editor — browser half.
  *
  * Three entry points:
- *  - a Session-row menu action that hard-deletes that Session through the
- *    plugin's Host command;
+ *  - a Session-row menu action that deletes that Session through the Host
+ *    command (which moves the artifact to a trash directory);
  *  - per-answer actions that regenerate, edit the prompt, or drop the turn by
  *    forking the Session before it and reopening the child;
  *  - one overlay that owns the confirmation/edit dialogs and the result toast.
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-session-toolkit',
+  id: 'dsh-session-editor',
   factory(require) {
     const React = require('react')
     const h = React.createElement
-    const NS = 'sessionToolkit'
+    const NS = 'sessionEditor'
     const inject = [
       'slots',
       'locale',
@@ -25,63 +25,64 @@ window.__ModuleLoader__.load({
     ]
 
     const CSS = `
-.stk-actions{display:inline-flex;align-items:center;gap:2px;margin:0 2px}
-.stk-icon{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);opacity:.85;cursor:pointer;transition:background .12s ease,color .12s ease,opacity .12s ease}
-.stk-icon:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);opacity:1}
-.stk-icon:disabled{opacity:.35;cursor:default}
-.stk-icon:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.stk-menu{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-state-error-primary);font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer}
-.stk-menu:hover{background:var(--dsw-alias-bg-layer-2)}
-.stk-menu:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.stk-backdrop{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(16,18,22,.42);pointer-events:auto}
-.stk-dialog{width:min(540px,100%);max-height:min(80vh,720px);overflow:auto;border-radius:14px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 18px 50px rgba(0,0,0,.28);padding:20px 22px 18px}
-.stk-title{margin:0 0 10px;font-size:15px;font-weight:600;line-height:22px}
-.stk-text{margin:0 0 10px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary)}
-.stk-warning{margin:0 0 12px;padding:8px 10px;border-radius:8px;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1)}
-.stk-code{font-family:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px;color:var(--dsw-alias-label-primary);word-break:break-all}
-.stk-textarea{box-sizing:border-box;width:100%;min-height:140px;max-height:40vh;resize:vertical;padding:10px 12px;border-radius:10px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px}
-.stk-textarea:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.stk-error{margin:10px 0 0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary);word-break:break-word}
-.stk-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:16px}
-.stk-btn{height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;cursor:pointer}
-.stk-btn:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2)}
-.stk-btn:disabled{opacity:.55;cursor:default}
-.stk-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.stk-btn[data-kind=primary]{background:var(--dsw-alias-brand-primary);border-color:transparent;color:#fff}
-.stk-btn[data-kind=danger]{background:var(--dsw-alias-state-error-primary);border-color:transparent;color:#fff}
-.stk-toast{position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:2147483001;display:flex;align-items:center;gap:10px;max-width:min(560px,90vw);padding:10px 16px;border-radius:10px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 10px 30px rgba(0,0,0,.2);font-size:13px;line-height:20px;pointer-events:auto}
-.stk-toast[data-kind=error]{border-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary)}
-.stk-user-row{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:0}
-.stk-user-fallback{padding:10px 16px;border-radius:18px;background:var(--dsw-alias-bg-layer-2);white-space:pre-wrap;word-break:break-word;font:inherit}
-.stk-user-actions{display:inline-flex;align-items:center;gap:2px;opacity:0;transition:opacity .12s ease}
-.stk-user-row:hover .stk-user-actions,.stk-user-actions:focus-within{opacity:1}
-@media (hover:none){.stk-user-actions{opacity:1}}
+.sed-actions{display:inline-flex;align-items:center;gap:2px;margin:0 2px}
+.sed-icon{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);opacity:.85;cursor:pointer;transition:background .12s ease,color .12s ease,opacity .12s ease}
+.sed-icon:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);opacity:1}
+.sed-icon:disabled{opacity:.35;cursor:default}
+.sed-icon:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.sed-menu{display:flex;align-items:center;gap:8px;width:100%;min-height:32px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-state-error-primary);font:inherit;font-size:13px;line-height:20px;text-align:left;cursor:pointer}
+.sed-menu:hover{background:var(--dsw-alias-bg-layer-2)}
+.sed-menu:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.sed-backdrop{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(16,18,22,.42);pointer-events:auto}
+.sed-dialog{width:min(540px,100%);max-height:min(80vh,720px);overflow:auto;border-radius:14px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 18px 50px rgba(0,0,0,.28);padding:20px 22px 18px}
+.sed-title{margin:0 0 10px;font-size:15px;font-weight:600;line-height:22px}
+.sed-text{margin:0 0 10px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary)}
+.sed-warning{margin:0 0 12px;padding:8px 10px;border-radius:8px;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1)}
+.sed-code{font-family:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px;color:var(--dsw-alias-label-primary);word-break:break-all}
+.sed-textarea{box-sizing:border-box;width:100%;min-height:140px;max-height:40vh;resize:vertical;padding:10px 12px;border-radius:10px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px}
+.sed-textarea:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.sed-error{margin:10px 0 0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary);word-break:break-word}
+.sed-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:16px}
+.sed-btn{height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;cursor:pointer}
+.sed-btn:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2)}
+.sed-btn:disabled{opacity:.55;cursor:default}
+.sed-btn:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.sed-btn[data-kind=primary]{background:var(--dsw-alias-brand-primary);border-color:transparent;color:#fff}
+.sed-btn[data-kind=danger]{background:var(--dsw-alias-state-error-primary);border-color:transparent;color:#fff}
+.sed-toast{position:fixed;left:50%;bottom:32px;transform:translateX(-50%);z-index:2147483001;display:flex;align-items:center;gap:10px;max-width:min(560px,90vw);padding:10px 16px;border-radius:10px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 10px 30px rgba(0,0,0,.2);font-size:13px;line-height:20px;pointer-events:auto}
+.sed-toast[data-kind=error]{border-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary)}
+.sed-user-row{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:0}
+.sed-user-fallback{padding:10px 16px;border-radius:18px;background:var(--dsw-alias-bg-layer-2);white-space:pre-wrap;word-break:break-word;font:inherit}
+.sed-user-actions{display:inline-flex;align-items:center;gap:2px;opacity:0;transition:opacity .12s ease}
+.sed-user-row:hover .sed-user-actions,.sed-user-actions:focus-within{opacity:1}
+@media (hover:none){.sed-user-actions{opacity:1}}
 `
 
     const zh = {
       'action.regenerate': '重新生成（替换原会话）',
       'action.edit': '编辑提问并重发（替换原会话）',
-      'action.deleteTurn': '删除此轮及之后（直接删除）',
+      'action.deleteTurn': '删除此轮及之后（替换原会话）',
       'action.editUser': '编辑我的输入',
       'action.copy': '复制',
       'toast.copied': '已复制',
       'menu.deleteSession': '删除会话…',
       'dialog.deleteSession.title': '删除会话',
-      'dialog.deleteSession.body': '将永久删除会话「{title}」在本机的全部记录。',
-      'dialog.deleteSession.warning': '会话日志会从磁盘移除，无法恢复；进行中的回答会先被停止。',
+      'dialog.deleteSession.body': '将删除会话「{title}」在本机的全部记录。',
+      'dialog.deleteSession.warning': '会话目录会被移入回收站，默认保留七天；进行中的回答会先被停止。',
       'dialog.edit.title': '编辑提问并重发',
-      'dialog.edit.body': '保存后会用新的提问重新生成，并删除原会话；只保留修改后的对话。',
+      'dialog.edit.body': '保存后会用新的提问重新生成，原会话移入回收站；只保留修改后的对话。',
       'dialog.edit.submit': '保存并替换原会话',
       'dialog.deleteTurn.title': '删除此轮及之后',
-      'dialog.deleteTurn.body': '确认后会删除该轮及之后的全部对话，并删除原会话；只保留之前的对话。',
+      'dialog.deleteTurn.body': '确认后会删除该轮及之后的全部对话，原会话移入回收站；只保留之前的对话。',
       'dialog.deleteTurn.submit': '删除并替换原会话',
       'dialog.deleteTurn.turn': '第 {turn} 轮对话',
       'dialog.regenerate.title': '重新生成',
-      'dialog.regenerate.body': '将重新生成这一轮的回答，并删除原会话；只保留重新生成的对话。',
+      'dialog.regenerate.body': '将重新生成这一轮的回答，原会话移入回收站；只保留重新生成的对话。',
       'dialog.regenerate.submit': '重新生成并替换原会话',
       'common.cancel': '取消',
       'common.delete': '删除',
       'common.close': '关闭',
+      'common.working': '处理中…',
       'toast.deleted': '会话已删除',
       'error.noSession': '请先打开任意一个会话，再执行这个操作',
       'error.active': '不能删除当前正在查看的会话；请先切换到另一个会话再删除它',
@@ -91,34 +92,35 @@ window.__ModuleLoader__.load({
       'error.command': '删除命令执行失败：{message}',
       'error.commandShape': '删除命令返回了意外结果；请重启 DSH 后再试',
       'error.deleteSource': '新对话已创建，但删除原会话失败：{message}',
-      'error.unknown': '找不到删除命令，请确认“会话工具箱”插件的 Host 部分已启用',
+      'error.unknown': '找不到删除命令，请确认“会话编辑器”插件的 Host 部分已启用',
       'error.generic': '操作失败：{message}',
     }
 
     const en = {
       'action.regenerate': 'Regenerate (replaces the session)',
       'action.edit': 'Edit prompt and resend (replaces the session)',
-      'action.deleteTurn': 'Delete this turn and later ones (delete directly)',
+      'action.deleteTurn': 'Delete this turn and later ones (replaces the session)',
       'action.editUser': 'Edit my input',
       'action.copy': 'Copy',
       'toast.copied': 'Copied',
       'menu.deleteSession': 'Delete session…',
       'dialog.deleteSession.title': 'Delete session',
-      'dialog.deleteSession.body': 'Permanently delete every local record of “{title}”.',
-      'dialog.deleteSession.warning': 'The session log is removed from disk and cannot be restored; running work is stopped first.',
+      'dialog.deleteSession.body': 'Delete every local record of “{title}”.',
+      'dialog.deleteSession.warning': 'The session directory is moved to the trash and kept for seven days by default; running work is stopped first.',
       'dialog.edit.title': 'Edit prompt and resend',
-      'dialog.edit.body': 'Saving asks again with the edited prompt and deletes the original session, keeping only the edited conversation.',
+      'dialog.edit.body': 'Saving asks again with the edited prompt and moves the original session to the trash, keeping only the edited conversation.',
       'dialog.edit.submit': 'Save and replace the session',
       'dialog.deleteTurn.title': 'Delete this turn and later ones',
-      'dialog.deleteTurn.body': 'This deletes this turn and everything after it, deletes the original session, and keeps only the earlier conversation.',
+      'dialog.deleteTurn.body': 'This deletes this turn and everything after it, moves the original session to the trash, and keeps only the earlier conversation.',
       'dialog.deleteTurn.submit': 'Delete and replace the session',
       'dialog.deleteTurn.turn': 'Turn {turn}',
       'dialog.regenerate.title': 'Regenerate',
-      'dialog.regenerate.body': 'This regenerates this turn’s answer and deletes the original session, keeping only the regenerated conversation.',
+      'dialog.regenerate.body': 'This regenerates this turn’s answer and moves the original session to the trash, keeping only the regenerated conversation.',
       'dialog.regenerate.submit': 'Regenerate and replace the session',
       'common.cancel': 'Cancel',
       'common.delete': 'Delete',
       'common.close': 'Close',
+      'common.working': 'Working…',
       'toast.deleted': 'Session deleted',
       'error.noSession': 'Open any session first, then run this action',
       'error.active': 'The session you are viewing cannot delete itself; switch to another session first',
@@ -128,7 +130,7 @@ window.__ModuleLoader__.load({
       'error.command': 'The delete command failed: {message}',
       'error.commandShape': 'The delete command returned an unexpected result; restart DSH and try again',
       'error.deleteSource': 'The new conversation was created, but deleting the original session failed: {message}',
-      'error.unknown': 'The delete command is missing; check that the Session Toolkit Host half is enabled',
+      'error.unknown': 'The delete command is missing; check that the Session Editor Host half is enabled',
       'error.generic': 'The action failed: {message}',
     }
 
@@ -181,11 +183,21 @@ window.__ModuleLoader__.load({
 
     const RegenerateIcon = () =>
       icon(['M13.4 6.2A5.5 5.5 0 1 0 13.5 9', 'M13.4 2.6v3.6H9.8'])
-    const EditIcon = () => icon(['M10.8 2.9l2.3 2.3', 'M2.9 10.8l-.6 2.9 2.9-.6 7.6-7.6a1.6 1.6 0 0 0-2.3-2.3z'])
+    const EditIcon = () =>
+      icon(['M10.8 2.9l2.3 2.3', 'M2.9 10.8l-.6 2.9 2.9-.6 7.6-7.6a1.6 1.6 0 0 0-2.3-2.3z'])
     const DeleteIcon = () =>
-      icon(['M2.8 4.2h10.4', 'M6 2.6h4', 'M4.1 4.2l.6 8.3a1.1 1.1 0 0 0 1.1 1h4.4a1.1 1.1 0 0 0 1.1-1l.6-8.3', 'M6.7 6.7v4.4', 'M9.3 6.7v4.4'])
+      icon([
+        'M2.8 4.2h10.4',
+        'M6 2.6h4',
+        'M4.1 4.2l.6 8.3a1.1 1.1 0 0 0 1.1 1h4.4a1.1 1.1 0 0 0 1.1-1l.6-8.3',
+        'M6.7 6.7v4.4',
+        'M9.3 6.7v4.4',
+      ])
     const CopyIcon = () =>
-      icon(['M5.6 5.6h6.8a1 1 0 0 1 1 1v6.8a1 1 0 0 1-1 1H5.6a1 1 0 0 1-1-1V6.6a1 1 0 0 1 1-1z', 'M3.6 10.6h-.9a1 1 0 0 1-1-1V2.9a1 1 0 0 1 1-1h6.7a1 1 0 0 1 1 1v.9'])
+      icon([
+        'M5.6 5.6h6.8a1 1 0 0 1 1 1v6.8a1 1 0 0 1-1 1H5.6a1 1 0 0 1-1-1V6.6a1 1 0 0 1 1-1z',
+        'M3.6 10.6h-.9a1 1 0 0 1-1-1V2.9a1 1 0 0 1 1-1h6.7a1 1 0 0 1 1 1v.9',
+      ])
 
     /**
      * Concatenate the text blocks of one recorded message.
@@ -294,7 +306,7 @@ window.__ModuleLoader__.load({
     function newRequestId() {
       const cryptoApi = typeof crypto !== 'undefined' ? crypto : undefined
       if (cryptoApi?.randomUUID !== undefined) return cryptoApi.randomUUID()
-      return `stk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+      return `sed-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
     }
 
     /**
@@ -302,14 +314,14 @@ window.__ModuleLoader__.load({
      * @param ctx - client root context.
      */
     function apply(ctx) {
-      ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'session-toolkit: dictionaries')
+      ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'session-editor: dictionaries')
       ctx.effect(() => {
         const style = document.createElement('style')
-        style.dataset.plugin = 'dsh-session-toolkit'
+        style.dataset.plugin = 'dsh-session-editor'
         style.textContent = CSS
         document.head.appendChild(style)
         return () => style.remove()
-      }, 'session-toolkit: styles')
+      }, 'session-editor: styles')
 
       const t = ctx.locale.bind(NS)
       const store = createStore()
@@ -321,9 +333,6 @@ window.__ModuleLoader__.load({
       const openDialog = (dialog) => {
         tokenCounter += 1
         store.patch({ dialog: { ...dialog, token: tokenCounter, busy: false, error: null } })
-      }
-      const fail = (error) => {
-        showToast('error', t('error.generic', { message: describe(error) }))
       }
 
       /**
@@ -362,7 +371,7 @@ window.__ModuleLoader__.load({
       /**
        * Delete the source Session once its replacement branch is open. The
        * command runs on the source itself, so the Host defers the artifact
-       * removal until its own command lifecycle appends have settled.
+       * move until its own command lifecycle appends have settled.
        * @param sessionId - Session the replacement replaces.
        */
       async function discardSource(sessionId) {
@@ -370,7 +379,7 @@ window.__ModuleLoader__.load({
         try {
           const response = await ctx.remote.commands.execute(
             sessionId,
-            `/session-toolkit delete ${sessionId}`,
+            `/session-editor delete ${sessionId}`,
             [],
           )
           if (response === undefined) throw new Error(t('error.unknown'))
@@ -380,6 +389,7 @@ window.__ModuleLoader__.load({
           const result = execution.result
           if (result === undefined) throw new Error(t('error.commandShape'))
           if (result.kind === 'error') throw new Error(result.text)
+          showToast('success', result.text === undefined ? t('toast.deleted') : result.text)
           return
         } catch (error) {
           failure = error
@@ -387,8 +397,8 @@ window.__ModuleLoader__.load({
         // A command that runs inside the Session it deletes can report a late
         // settlement error after the artifact is already gone. Only warn when
         // the Session is still listed once the removal has had time to settle.
-        console.warn('session-toolkit: delete source reported an error', failure)
-        await new Promise((resolve) => setTimeout(resolve, 600))
+        console.warn('session-editor: delete source reported an error', failure)
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 600))
         let known = false
         let listed = true
         try {
@@ -422,7 +432,9 @@ window.__ModuleLoader__.load({
           throw new Error(t('error.command', { message: describe(error) }))
         }
         if (response === undefined) throw new Error(t('error.unknown'))
-        if (!response.ok) throw new Error(t('error.command', { message: `${response.error.code}: ${response.error.message}` }))
+        if (!response.ok) {
+          throw new Error(t('error.command', { message: `${response.error.code}: ${response.error.message}` }))
+        }
         const execution = response.value
         if (execution === undefined) throw new Error(t('error.unknown'))
         const result = execution.result
@@ -498,20 +510,20 @@ window.__ModuleLoader__.load({
                 facts,
                 interactive: true,
               })
-            : h('div', { className: 'stk-user-fallback' }, text)
+            : h('div', { className: 'sed-user-fallback' }, text)
         const editable = sessionId !== undefined && boundary !== null && text.trim() !== ''
         return h(
           'div',
-          { className: 'stk-user-row' },
+          { className: 'sed-user-row' },
           bubble,
           h(
             'div',
-            { className: 'stk-user-actions' },
+            { className: 'sed-user-actions' },
             h(
               'button',
               {
                 type: 'button',
-                className: 'stk-icon',
+                className: 'sed-icon',
                 title: tr('action.copy'),
                 'aria-label': tr('action.copy'),
                 onClick: () => {
@@ -531,7 +543,7 @@ window.__ModuleLoader__.load({
                   'button',
                   {
                     type: 'button',
-                    className: 'stk-icon',
+                    className: 'sed-icon',
                     title: tr('action.editUser'),
                     'aria-label': tr('action.editUser'),
                     onClick: () => {
@@ -562,7 +574,7 @@ window.__ModuleLoader__.load({
           {
             type: 'button',
             role: 'menuitem',
-            className: 'stk-menu',
+            className: 'sed-menu',
             onClick: () => {
               setMenuOpen(false)
               if (runnerId === null) {
@@ -591,21 +603,33 @@ window.__ModuleLoader__.load({
         const messageId = props.messageId
         const sessionId = props.sessionId
         const snapshot = props.useChat((state) => state)
-        const info = React.useMemo(() => findTurn(snapshot, messageId), [snapshot, messageId])
+        const turns = snapshot?.timeline?.turns
+        const locations = snapshot?.locations
+        const nodes = snapshot?.nodes
+        const info = React.useMemo(
+          () => findTurn(snapshot, messageId),
+          [turns, locations, nodes, messageId],
+        )
         if (info === null || sessionId === undefined) return null
         const label = (key) => props.t(key)
         return h(
           'span',
-          { className: 'stk-actions' },
+          { className: 'sed-actions' },
           h(
             'button',
             {
               type: 'button',
-              className: 'stk-icon',
+              className: 'sed-icon',
               title: label('action.regenerate'),
               'aria-label': label('action.regenerate'),
               onClick: () => {
-                openDialog({ kind: 'regenerate', sessionId, boundary: info.boundary, prompt: info.prompt, turn: info.turn })
+                openDialog({
+                  kind: 'regenerate',
+                  sessionId,
+                  boundary: info.boundary,
+                  prompt: info.prompt,
+                  turn: info.turn,
+                })
               },
             },
             h(RegenerateIcon),
@@ -614,7 +638,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'stk-icon',
+              className: 'sed-icon',
               title: label('action.edit'),
               'aria-label': label('action.edit'),
               onClick: () => {
@@ -632,7 +656,7 @@ window.__ModuleLoader__.load({
             'button',
             {
               type: 'button',
-              className: 'stk-icon',
+              className: 'sed-icon',
               title: label('action.deleteTurn'),
               'aria-label': label('action.deleteTurn'),
               onClick: () => {
@@ -653,16 +677,16 @@ window.__ModuleLoader__.load({
         let body
         if (dialog.kind === 'delete-session') {
           body = [
-            h('p', { key: 'body', className: 'stk-text' }, props.t('dialog.deleteSession.body', { title: dialog.title })),
-            h('div', { key: 'id', className: 'stk-text' }, h('span', { className: 'stk-code' }, dialog.sessionId)),
-            h('p', { key: 'warn', className: 'stk-warning' }, props.t('dialog.deleteSession.warning')),
+            h('p', { key: 'body', className: 'sed-text' }, props.t('dialog.deleteSession.body', { title: dialog.title })),
+            h('div', { key: 'id', className: 'sed-text' }, h('span', { className: 'sed-code' }, dialog.sessionId)),
+            h('p', { key: 'warn', className: 'sed-warning' }, props.t('dialog.deleteSession.warning')),
           ]
         } else if (dialog.kind === 'edit-message') {
           body = [
-            h('p', { key: 'body', className: 'stk-text' }, props.t('dialog.edit.body')),
+            h('p', { key: 'body', className: 'sed-text' }, props.t('dialog.edit.body')),
             h('textarea', {
               key: 'edit',
-              className: 'stk-textarea',
+              className: 'sed-textarea',
               value: text,
               disabled: busy,
               autoFocus: true,
@@ -678,20 +702,20 @@ window.__ModuleLoader__.load({
           ]
         } else if (dialog.kind === 'regenerate') {
           body = [
-            h('p', { key: 'body', className: 'stk-text' }, props.t('dialog.regenerate.body')),
+            h('p', { key: 'body', className: 'sed-text' }, props.t('dialog.regenerate.body')),
             h(
               'div',
-              { key: 'turn', className: 'stk-text' },
-              h('span', { className: 'stk-code' }, props.t('dialog.deleteTurn.turn', { turn: dialog.turn })),
+              { key: 'turn', className: 'sed-text' },
+              h('span', { className: 'sed-code' }, props.t('dialog.deleteTurn.turn', { turn: dialog.turn })),
             ),
           ]
         } else {
           body = [
-            h('p', { key: 'body', className: 'stk-text' }, props.t('dialog.deleteTurn.body')),
+            h('p', { key: 'body', className: 'sed-text' }, props.t('dialog.deleteTurn.body')),
             h(
               'div',
-              { key: 'turn', className: 'stk-text' },
-              h('span', { className: 'stk-code' }, props.t('dialog.deleteTurn.turn', { turn: dialog.turn })),
+              { key: 'turn', className: 'sed-text' },
+              h('span', { className: 'sed-code' }, props.t('dialog.deleteTurn.turn', { turn: dialog.turn })),
             ),
           ]
         }
@@ -714,25 +738,25 @@ window.__ModuleLoader__.load({
         return h(
           'div',
           {
-            className: 'stk-dialog',
+            className: 'sed-dialog',
             role: 'dialog',
             'aria-modal': 'true',
             'aria-label': title,
             onClick: (event) => event.stopPropagation(),
           },
-          h('h2', { className: 'stk-title' }, title),
+          h('h2', { className: 'sed-title' }, title),
           ...body,
           dialog.error === null || dialog.error === undefined
             ? null
-            : h('p', { className: 'stk-error', role: 'alert' }, dialog.error),
+            : h('p', { className: 'sed-error', role: 'alert' }, dialog.error),
           h(
             'div',
-            { className: 'stk-footer' },
+            { className: 'sed-footer' },
             h(
               'button',
               {
                 type: 'button',
-                className: 'stk-btn',
+                className: 'sed-btn',
                 disabled: busy,
                 autoFocus: !editing,
                 onClick: closeDialog,
@@ -743,12 +767,12 @@ window.__ModuleLoader__.load({
               'button',
               {
                 type: 'button',
-                className: 'stk-btn',
+                className: 'sed-btn',
                 'data-kind': dialog.kind === 'edit-message' ? 'primary' : 'danger',
                 disabled: busy,
                 onClick: () => submitDialog(editing ? { ...dialog, text } : dialog),
               },
-              busy ? '…' : submitLabel,
+              busy ? props.t('common.working') : submitLabel,
             ),
           ),
         )
@@ -781,7 +805,7 @@ window.__ModuleLoader__.load({
             : h(
                 'div',
                 {
-                  className: 'stk-backdrop',
+                  className: 'sed-backdrop',
                   onMouseDown: (event) => {
                     if (event.target === event.currentTarget && dialog.busy !== true) closeDialog()
                   },
@@ -793,13 +817,13 @@ window.__ModuleLoader__.load({
             ? null
             : h(
                 'div',
-                { className: 'stk-toast', 'data-kind': toast.kind, role: 'status' },
+                { className: 'sed-toast', 'data-kind': toast.kind, role: 'status' },
                 h('span', null, toast.text),
                 h(
                   'button',
                   {
                     type: 'button',
-                    className: 'stk-icon',
+                    className: 'sed-icon',
                     'aria-label': props.t('common.close'),
                     title: props.t('common.close'),
                     onClick: () => store.patch({ toast: null }),
@@ -815,7 +839,7 @@ window.__ModuleLoader__.load({
         ctx.slots.register(
           {
             name: 'sidebar.workspaces.session.menu.item',
-            id: 'session-toolkit-delete',
+            id: 'session-editor-delete',
             order: 410,
             locale: NS,
           },
@@ -827,7 +851,7 @@ window.__ModuleLoader__.load({
         ctx.slots.register(
           {
             name: 'conversation.chat.assistant-actions',
-            id: 'session-toolkit-actions',
+            id: 'session-editor-actions',
             order: 20,
             locale: NS,
             inject: (sessionId) => ({ sessionId }),
@@ -851,7 +875,7 @@ window.__ModuleLoader__.load({
         ctx.slots.register(
           {
             name: 'shell.overlay',
-            id: 'session-toolkit-dialog',
+            id: 'session-editor-dialog',
             order: 60,
             locale: NS,
           },
