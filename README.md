@@ -44,18 +44,20 @@ Consequences:
 
 The plugin does **not** guess a path and delete it. Before any state changes it:
 
-1. reads the stored header via `sessionPersistence.stat` and refuses subagent sessions;
-2. refuses to delete a session that still has **subagent** children (fork children are allowed);
-3. resolves the artifact through, in order:
+1. reads the stored header via `sessionPersistence.stat` and refuses a session that still has **subagent** children (fork children are allowed);
+2. resolves the artifact through, in order:
    - a backend `locate(header)` when the harness provides one;
    - the JSONL backend's `listArtifacts()` (validated header → path);
    - `<persistence root>/<project>/<sessionId>` for each candidate root
      (`sessionPersistence.root`, its `config.root`, `$DSH_HOME/sessions`);
-4. verifies that the directory is exactly one level under a root, is not a symlink, and contains a `session*.jsonl[.zstd]` file;
-5. archives the session through `workspaceRegistry` and, if it is running, cancels it and waits for it to become idle (15 s limit — otherwise nothing is deleted);
-6. calls `sessionPersistence.flush()`, then **erases the directory** from disk.
+3. verifies that the directory is exactly one level under a root, is not a symlink, and contains a `session*.jsonl[.zstd]` file;
+4. if the session is running, stops it and waits for it to become idle (15 s limit — otherwise nothing is deleted);
+5. calls `sessionPersistence.flush()`, then **erases the directory** from disk;
+6. **archives** the row so the sidebar drops it immediately, without a restart.
 
-If any step fails, the session is restored from the archive and the command reports the reason. A failed path lookup happens **before** the archive, so a locate failure leaves the session untouched.
+The order matters. Erasing comes **before** archiving: a failed erase therefore reports an error instead of silently hiding a row whose log still exists. Archiving only hides the row; the session id leaves the workspace registry on the next DSH start, when the registry is rebuilt from disk. The plugin never writes `workspace.json`.
+
+A failed path lookup happens **before** any state change, so it leaves the session untouched.
 
 There is no recovery afterwards. If you might want the conversation back, cancel at the confirmation dialog and archive the session instead.
 

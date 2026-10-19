@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.2 — 2026-10-19
+
+- **Delete now erases the file *and* drops the sidebar row.** The order is
+  stop → flush → erase → archive → notify. Erasing before archiving means a
+  failed erase reports an error instead of hiding a row whose log still
+  exists. The row disappears immediately; the registry entry is rebuilt from
+  disk on the next start, and the plugin never writes `workspace.json`.
+- The sidebar delete sent the retired command name `session-toolkit`; both
+  call sites now send `session-editor`.
+- Subagent sessions are deletable like any other stored session; only a
+  session that still has subagent children is refused.
+- `apply()` no longer swallows command-registration failures.
+
 ## 0.1.1 — 2026-10-19
 
 - **Deletion is now permanent.** The seven-day trash folder is gone: the
