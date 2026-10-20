@@ -76,18 +76,16 @@ There is no recovery afterwards. If you might want the conversation back, cancel
 2. Paste the repository address:
 
    ```text
-   https://github.com/wodebilu/dsh-session-toolkit
+   https://github.com/wodebilu/dsh-session-editor
    ```
 
    or install from a shell:
 
    ```powershell
-   dsh plugin --profile web add github:wodebilu/dsh-session-toolkit
+   dsh plugin --profile web add github:wodebilu/dsh-session-editor
    ```
 
-   The package name comes from `package.json` (`dsh-session-editor`), so the
-   installed bundle is `dsh-session-editor` even though the repository is named
-   `dsh-session-toolkit`.
+   The package name and the repository name are both `dsh-session-editor`.
 3. Install, then restart DSH once.
 
 Do **not** install it from npm as `dsh-session-toolkit`: that name belongs to a different plugin.

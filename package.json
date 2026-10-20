@@ -6,11 +6,11 @@
   "author": "wodebilu",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wodebilu/dsh-session-toolkit.git"
+    "url": "git+https://github.com/wodebilu/dsh-session-editor.git"
   },
-  "homepage": "https://github.com/wodebilu/dsh-session-toolkit#readme",
+  "homepage": "https://github.com/wodebilu/dsh-session-editor#readme",
   "bugs": {
-    "url": "https://github.com/wodebilu/dsh-session-toolkit/issues"
+    "url": "https://github.com/wodebilu/dsh-session-editor/issues"
   },
   "keywords": [
     "dsh",

@@ -82,12 +82,11 @@ DSH 的会话日志是 append-only 的，不支持原地改写。所以每次编
 2. 粘贴仓库地址：
 
    ```text
-   https://github.com/wodebilu/dsh-session-toolkit
+   https://github.com/wodebilu/dsh-session-editor
    ```
 
-   或 `github:wodebilu/dsh-session-toolkit`。
-   包名取自 `package.json`（`dsh-session-editor`），所以仓库虽然叫
-   `dsh-session-toolkit`，装出来的 bundle 是 `dsh-session-editor`。
+   或 `github:wodebilu/dsh-session-editor`。
+   包名与仓库名现在都是 `dsh-session-editor`。
 3. 安装后重启一次 DSH。
 
 **不要**从 npm 安装 `dsh-session-toolkit`：那个名字属于另一个插件。

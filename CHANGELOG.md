@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Repository renamed to `dsh-session-editor`.** An npm package named
+  `dsh-session-toolkit` belongs to an unrelated plugin by another author, so
+  the repository no longer shares that name. The package name was already
+  `dsh-session-editor` and is unchanged. Existing
+  `github:wodebilu/dsh-session-toolkit` installs keep resolving through
+  GitHub's rename redirect, but reinstalling from the new address is preferred.
+
 ## 0.1.2 — 2026-10-19
 
 - **Delete now erases the file *and* drops the sidebar row.** The order is
