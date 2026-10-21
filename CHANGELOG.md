@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Delete now erases the projection cache too.** The session log was not the
+  only copy of a conversation: DSH keeps a checkpoint at
+  `<library>/storages/session_projcache/sessions/<id>.json` that carries the
+  title, the first prompt and the turn outline — the message text itself. A
+  "permanent" delete that left it behind had not removed the conversation, so
+  the file is removed alongside the log. A missing cache is normal and a
+  failed one is reported without blocking the deletion, because the log is
+  already gone by then.
 - **A failed erase no longer leaves a hidden row behind.** Stopping a running
   session archives it first; if the erase then fails, the row is un-archived
   and reappears, so "deleted" never means "hidden but still on disk". The

@@ -236,21 +236,65 @@ async function restoreAfterFailedDelete(ctx, sessionId, artifact, archivedForSto
 }
 
 /**
- * Erase the verified session directory, then archive the row so the sidebar
- * drops it immediately, then announce the removal.
+ * Erase the verified session directory and its projection cache, then archive
+ * the row so the sidebar drops it immediately, then announce the removal.
  *
  * Order matters: the file erase comes first, so a later archive that fails or
  * is ignored by the client can never leave a hidden row pointing at a log
  * that still exists. Archiving is what makes the row disappear without a
  * restart; the Session id itself leaves the workspace registry on the next
  * DSH start, when the registry is rebuilt from disk.
+ *
+ * The log is not the only copy of the conversation: DSH keeps a projection
+ * checkpoint at `<root>/storages/session_projcache/sessions/<id>.json` that
+ * carries the title, the first prompt and the turn outline — the actual
+ * message text. A "permanent" delete that leaves it behind has not removed
+ * the conversation, so it goes too.
  * @param ctx - owning plugin context.
  * @param job - Session id and resolved artifact.
  */
 async function finalizeDeletion(ctx, job) {
   await deleteArtifact(job.artifact, job.sessionId)
+  await deleteProjectionCaches(job.artifact.root, job.sessionId)
   await archiveAfterDelete(ctx, job.sessionId)
   safeEmit(ctx, 'api-session/removed', job.sessionId)
+}
+
+/**
+ * Remove the projection checkpoints that describe one Session.
+ *
+ * `root` is the persistence root DSH writes logs under — `<library>/sessions`
+ * — and the projection cache is a sibling of it at
+ * `<library>/storages/session_projcache/sessions/`. The exact file name is the
+ * backend's business, so the directory is scanned for any record whose name
+ * carries the id instead of guessing one name. A miss is normal (a session
+ * that never checkpointed); a failure is reported and never blocks the
+ * deletion, because the log is already gone and a row that reappears for a
+ * session whose log is missing would be worse than a stale cache file.
+ * @param root - persistence root (`.../sessions`) the artifact was erased from.
+ * @param sessionId - Session whose checkpoints should go.
+ */
+async function deleteProjectionCaches(root, sessionId) {
+  const library = dirname(resolve(root))
+  const directory = join(library, 'storages', 'session_projcache', 'sessions')
+  let entries
+  try {
+    entries = await readdir(directory, { withFileTypes: true })
+  } catch {
+    // No cache directory for this library: nothing to remove.
+    return
+  }
+  for (const entry of entries) {
+    if (!entry.isFile()) continue
+    const stem = entry.name.replace(/\.[^.]+$/, '')
+    if (stem !== sessionId) continue
+    const file = join(directory, entry.name)
+    try {
+      await rm(file, { force: true })
+    } catch (error) {
+      console.warn(`session-editor: could not remove projection cache ${file}`, error)
+    }
+  }
 }
 
 /**
@@ -669,6 +713,7 @@ export const __internals = {
   ToolkitError,
   candidateRoots,
   deleteArtifact,
+  deleteProjectionCaches,
   deleteSession,
   locateArtifact,
   restoreAfterFailedDelete,

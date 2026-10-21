@@ -334,4 +334,44 @@ function run(definition, rawInput, agent) {
   await rm(store.base, { recursive: true, force: true })
 }
 
+/** Test 14: the projection cache is part of the conversation and is erased too. */
+{
+  const store = await makeStore('session-cached')
+  // The cache is a sibling of the persistence root: <base>/storages/...
+  const cacheDir = join(store.base, 'storages', 'session_projcache', 'sessions')
+  await mkdir(cacheDir, { recursive: true })
+  const cache = join(cacheDir, 'session-cached.json')
+  await writeFile(cache, JSON.stringify({ record: { rows: { turnOutline: { val: { turns: [] } } } } }))
+  // A neighbouring session's cache must survive untouched.
+  const otherCache = join(cacheDir, 'session-other.json')
+  await writeFile(otherCache, '{}')
+
+  const { calls, definition } = makeContext({
+    root: store.root,
+    snapshots: [{ header: { id: 'session-cached' } }],
+    artifacts: [{ header: { id: 'session-cached' }, path: store.path }],
+  })
+  const result = await run(definition, 'delete session-cached --confirm', { id: 'session-runner' })
+  assert.equal(result.kind, 'success', JSON.stringify(result))
+  assert.equal(await stat(store.directory).then(() => true, () => false), false, 'log survived')
+  assert.equal(await stat(cache).then(() => true, () => false), false, 'projection cache survived')
+  assert.equal(await stat(otherCache).then(() => true, () => false), true, 'neighbour cache was removed')
+  assert.equal(calls.archived.length, 1)
+  await rm(store.base, { recursive: true, force: true })
+}
+
+/** Test 15: a library with no projection-cache directory still deletes cleanly. */
+{
+  const store = await makeStore('session-nocache')
+  const { definition } = makeContext({
+    root: store.root,
+    snapshots: [{ header: { id: 'session-nocache' } }],
+    artifacts: [{ header: { id: 'session-nocache' }, path: store.path }],
+  })
+  const result = await run(definition, 'delete session-nocache --confirm', { id: 'session-runner' })
+  assert.equal(result.kind, 'success', JSON.stringify(result))
+  assert.equal(await stat(store.directory).then(() => true, () => false), false)
+  await rm(store.base, { recursive: true, force: true })
+}
+
 console.log('session-editor host tests OK')

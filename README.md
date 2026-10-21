@@ -53,7 +53,7 @@ The plugin does **not** guess a path and delete it. Before any state changes it:
      (`sessionPersistence.root`, its `config.root`, `$DSH_HOME/sessions`);
 3. verifies that the directory is exactly one level under a root, is not a symlink, and contains a `session*.jsonl[.zstd]` file;
 4. if the session is running, stops it and waits for it to become idle (15 s limit — otherwise nothing is deleted; stopping archives the row first);
-5. calls `sessionPersistence.flush()`, then **erases the directory** from disk;
+5. calls `sessionPersistence.flush()`, then **erases the directory** from disk and removes that session's projection cache (`<library>/storages/session_projcache/sessions/<id>.json` — the log is not the only copy of the conversation: this checkpoint carries the title, the first prompt and the turn outline);
 6. **archives** the row so the sidebar drops it immediately, without a restart.
 
 The order matters. Erasing comes **before** archiving: a failed erase therefore reports an error instead of silently hiding a row whose log still exists. A running session is archived *before* the erase in order to stop it; when that erase then fails, the row is un-archived and reappears. Archiving only hides the row; the session id leaves the workspace registry on the next DSH start, when the registry is rebuilt from disk. The plugin never writes `workspace.json`.

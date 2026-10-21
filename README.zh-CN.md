@@ -59,7 +59,7 @@ DSH 的会话日志是 append-only 的，不支持原地改写。所以每次编
    - 最后在候选根目录（`sessionPersistence.root`、其 `config.root`、`$DSH_HOME/sessions`）下扫描 `<root>/<project>/<sessionId>`；
 3. 校验目录恰好位于某个根目录下一层、不是符号链接、且内部有 `session*.jsonl[.zstd]`；
 4. 若会话在运行，先停止并等待空闲（最多 15 秒，超时则什么都不删；停止需要先归档这一行）；
-5. `sessionPersistence.flush()` 之后，把目录**从磁盘抹掉**；
+5. `sessionPersistence.flush()` 之后，把目录**从磁盘抹掉**，并删掉该会话的投影缓存（`<库>/storages/session_projcache/sessions/<id>.json`——日志不是对话的唯一副本：这个缓存里存着标题、首条提问和每轮问答的轮廓）；
 6. **归档**该会话，让侧边栏立刻移除这一行，不需要重启。
 
 顺序很重要：**先删文件、后归档**。所以删文件失败会直接报错，不会出现“看不见但文件还在”的情况——运行中的会话为了停下来会先被归档，一旦随后的删除失败，这一行会被取消归档、重新出现在列表里。归档只是把这一行隐藏起来；会话 id 会在 DSH 下次启动、按磁盘重建注册表时自动消失。插件**从不写入** `workspace.json`。
