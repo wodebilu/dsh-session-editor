@@ -39,6 +39,7 @@ Consequences:
 - There is no branch history left to return to.
 - Deletion is tail-based: "from this turn onward", not "delete only a middle message".
 - Editing text re-generates the answer; it is not a pure text-only edit.
+- Attachments on the message (images / files) are not re-sent: the log stores attachment ids and the prompt endpoint only accepts freshly uploaded content. Editing such a message warns and asks for a second acknowledgement instead of dropping them silently.
 
 ## Deletion safety
 
@@ -51,11 +52,11 @@ The plugin does **not** guess a path and delete it. Before any state changes it:
    - `<persistence root>/<project>/<sessionId>` for each candidate root
      (`sessionPersistence.root`, its `config.root`, `$DSH_HOME/sessions`);
 3. verifies that the directory is exactly one level under a root, is not a symlink, and contains a `session*.jsonl[.zstd]` file;
-4. if the session is running, stops it and waits for it to become idle (15 s limit — otherwise nothing is deleted);
+4. if the session is running, stops it and waits for it to become idle (15 s limit — otherwise nothing is deleted; stopping archives the row first);
 5. calls `sessionPersistence.flush()`, then **erases the directory** from disk;
 6. **archives** the row so the sidebar drops it immediately, without a restart.
 
-The order matters. Erasing comes **before** archiving: a failed erase therefore reports an error instead of silently hiding a row whose log still exists. Archiving only hides the row; the session id leaves the workspace registry on the next DSH start, when the registry is rebuilt from disk. The plugin never writes `workspace.json`.
+The order matters. Erasing comes **before** archiving: a failed erase therefore reports an error instead of silently hiding a row whose log still exists. A running session is archived *before* the erase in order to stop it; when that erase then fails, the row is un-archived and reappears. Archiving only hides the row; the session id leaves the workspace registry on the next DSH start, when the registry is rebuilt from disk. The plugin never writes `workspace.json`.
 
 A failed path lookup happens **before** any state change, so it leaves the session untouched.
 
@@ -107,7 +108,8 @@ Earlier builds used the package names `@local/dsh-session-toolkit` or `dsh-sessi
 - Delete a session: session row `…` → **Delete session permanently…** → tick the acknowledgement → confirm.
 - Edit or delete a turn: hover the action row under a finalized answer → pencil / trash / regenerate icon → confirm.
 - Edit your own message: hover a user bubble → copy / pencil.
-- Manual delete (from any other session): `/session-editor delete <sessionId>`. The command is also what the menu and the replace flows use.
+- Manual delete (from any other session): `/session-editor delete <sessionId> --confirm`. The command is also what the menu and the replace flows use.
+  A typed command has no dialog to tick, so `--confirm` is its acknowledgement: without it the command only returns the usage line and touches nothing, so a pasted line cannot delete a conversation by itself.
 
 The delete command is logged as a normal command row. When a session deletes itself (the replace flows), the Host waits for the command lifecycle to become durable, then erases the directory.
 

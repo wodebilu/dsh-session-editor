@@ -37,7 +37,9 @@ const FINALIZE_WAIT_MS = 5_000
 const SEQ_POLL_MS = 25
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._~-]{0,199}$/
 const LOG_NAME_PATTERN = /^session(?:\.[0-9a-z]+)?\.jsonl(?:\.zstd)?$/i
-const USAGE = '用法：/session-editor delete <sessionId>'
+const USAGE = '用法：/session-editor delete <sessionId> --confirm'
+const CONFIRM_REQUIRED =
+  '永久删除需要显式确认，且不可恢复：/session-editor delete <sessionId> --confirm'
 
 /** Session ids whose deletion is already running in this process. */
 const inFlight = new Set()
@@ -70,13 +72,18 @@ export function apply(ctx) {
   ctx.commands.register({
     name: 'session-editor',
     description: '会话编辑器：永久删除指定会话的本地记录（不可恢复）',
-    input: { hint: 'delete <sessionId>' },
+    input: { hint: 'delete <sessionId> --confirm' },
     handler: (invocation) => handleCommand(ctx, invocation),
   })
 }
 
 /**
  * Parse and execute one command line.
+ *
+ * The `--confirm` flag is the command plane's acknowledgement: the browser
+ * dialogs ask a human to tick a box, and a typed command has no dialog, so the
+ * flag plays that role. Without it nothing is read, stopped, archived, or
+ * removed — an unconfirmed line is a no-op.
  * @param ctx - owning plugin context.
  * @param invocation - command invocation supplied by the command plane.
  * @returns a command result; never throws.
@@ -84,12 +91,13 @@ export function apply(ctx) {
 async function handleCommand(ctx, invocation) {
   const agent = invocation?.agent
   const raw = typeof invocation?.rawInput === 'string' ? invocation.rawInput.trim() : ''
-  const match = /^delete\s+(\S+)\s*$/i.exec(raw)
+  const match = /^delete\s+(\S+)(?:\s+(--confirm))?\s*$/i.exec(raw)
   if (match === null) return { kind: 'error', text: USAGE }
   const sessionId = match[1]
   if (!ID_PATTERN.test(sessionId)) {
     return { kind: 'error', text: `无效的会话 ID：${sessionId}` }
   }
+  if (match[2] === undefined) return { kind: 'error', text: CONFIRM_REQUIRED }
   if (inFlight.has(sessionId)) {
     return { kind: 'error', text: `会话 ${sessionId} 正在删除，请稍候` }
   }
@@ -142,32 +150,43 @@ async function deleteSession(ctx, agent, sessionId) {
 
   const live = ctx.agents.get(sessionId)
   const running = live !== undefined && live.status === 'running'
-  const stopped = await stopSession(ctx, sessionId, live, running)
+  // Stops a running Session; when that had to archive the row to stop it, the
+  // flag lets a failed erase put the row back.
+  const archivedForStop = await stopSession(ctx, sessionId, live, running)
 
   const self = agent !== undefined && agent.id === sessionId
   if (self) {
-    scheduleSelfFinalize(ctx, { sessionId, artifact, live, stopped })
+    scheduleSelfFinalize(ctx, { sessionId, artifact, live, archivedForStop })
     return `会话 ${sessionId} 正在永久删除`
   }
 
-  await finalizeDeletion(ctx, { sessionId, artifact })
+  try {
+    await finalizeDeletion(ctx, { sessionId, artifact })
+  } catch (error) {
+    // Nothing is deleted when this throws, so a row hidden merely to stop the
+    // Session must come back: "deleted" may never mean "hidden but on disk".
+    await restoreAfterFailedDelete(ctx, sessionId, artifact, archivedForStop)
+    throw error
+  }
   return `已永久删除会话 ${sessionId}${header.cwd === undefined ? '' : `（${header.cwd}）`}；如只是想让会话从列表消失，下次可使用「归档」`
 }
 
 /**
- * Stop a running Session and wait for the durability barrier, without
- * archiving it yet: archiving hides a row from the sidebar, so it may only
- * happen once the files are actually gone.
+ * Stop a running Session and wait for the durability barrier.
+ *
+ * Archiving with `stopActivity` is the only way to stop work, but it also
+ * hides the row, so the caller restores it when the following erase fails. An
+ * already-idle Session is left untouched here.
  * @param ctx - owning plugin context.
  * @param sessionId - Session to stop.
  * @param live - live Agent for that Session, when present.
  * @param running - whether the Agent is currently executing.
- * @returns nothing; throws when the Session will not become idle.
+ * @returns whether the Session had to be archived in order to stop it.
  */
 async function stopSession(ctx, sessionId, live, running) {
+  let archived = false
   if (running) {
     const registry = ctx.get('workspaceRegistry')
-    let archived = false
     if (registry !== undefined && typeof registry.archiveSession === 'function') {
       try {
         await registry.archiveSession(sessionId, { stopActivity: true })
@@ -196,6 +215,24 @@ async function stopSession(ctx, sessionId, live, running) {
   } catch {
     // An unrelated Session's flush failure must not block this deletion.
   }
+  return archived
+}
+
+/**
+ * Bring back a row that was archived only to stop a running Session, when the
+ * erase then failed. The Session is still on disk, so hiding it would claim a
+ * deletion that never happened.
+ * @param ctx - owning plugin context.
+ * @param sessionId - Session whose erase failed.
+ * @param artifact - the artifact the erase would have removed.
+ * @param archivedForStop - whether stopping archived the row.
+ */
+async function restoreAfterFailedDelete(ctx, sessionId, artifact, archivedForStop) {
+  if (!archivedForStop) return
+  const directory = dirname(artifact.path)
+  const remains = await lstat(directory).then(() => true, () => false)
+  if (!remains) return
+  await unarchive(ctx, sessionId)
 }
 
 /**
@@ -262,6 +299,8 @@ function scheduleSelfFinalize(ctx, job) {
       }
       await finalizeDeletion(ctx, job)
     } catch (error) {
+      // Same rule as the immediate path: a failed erase leaves the row visible.
+      await restoreAfterFailedDelete(ctx, job.sessionId, job.artifact, job.archivedForStop)
       console.warn(`session-editor: could not finish deleting ${job.sessionId}`, error)
     }
   }
@@ -632,5 +671,6 @@ export const __internals = {
   deleteArtifact,
   deleteSession,
   locateArtifact,
+  restoreAfterFailedDelete,
   validateArtifactPath,
 }

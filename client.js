@@ -76,6 +76,8 @@ window.__ModuleLoader__.load({
       'dialog.deleteSession.ack': '我已了解，删除后无法恢复',
       'dialog.edit.title': '编辑提问并重发',
       'dialog.edit.body': '保存后会用新的提问重新生成，原会话将被永久删除；只保留修改后的对话。',
+      'dialog.edit.attachments': '这条消息带 {count} 个附件。重发只会带上文字，附件不会跟随。',
+      'dialog.edit.attachmentsAck': '我知道附件会丢失，仍然重发',
       'dialog.edit.submit': '保存并替换原会话',
       'dialog.deleteTurn.title': '删除此轮及之后',
       'dialog.deleteTurn.body': '确认后会删除该轮及之后的全部对话，原会话将被永久删除；只保留之前的对话。',
@@ -116,6 +118,8 @@ window.__ModuleLoader__.load({
       'dialog.deleteSession.ack': 'I understand this cannot be undone',
       'dialog.edit.title': 'Edit prompt and resend',
       'dialog.edit.body': 'Saving asks again with the edited prompt and permanently deletes the original session, keeping only the edited conversation.',
+      'dialog.edit.attachments': 'This message carries {count} attachment(s). Resending keeps the text only; the attachments are dropped.',
+      'dialog.edit.attachmentsAck': 'I know the attachments will be lost — resend anyway',
       'dialog.edit.submit': 'Save and replace the session',
       'dialog.deleteTurn.title': 'Delete this turn and later ones',
       'dialog.deleteTurn.body': 'This deletes this turn and everything after it, permanently deletes the original session, and keeps only the earlier conversation.',
@@ -386,7 +390,7 @@ window.__ModuleLoader__.load({
         try {
           const response = await ctx.remote.commands.execute(
             sessionId,
-            `/session-editor delete ${sessionId}`,
+            `/session-editor delete ${sessionId} --confirm`,
             [],
           )
           if (response === undefined) throw new Error(t('error.unknown'))
@@ -432,7 +436,7 @@ window.__ModuleLoader__.load({
         try {
           response = await ctx.remote.commands.execute(
             dialog.runnerId,
-            `/session-editor delete ${dialog.sessionId}`,
+            `/session-editor delete ${dialog.sessionId} --confirm`,
             [],
           )
         } catch (error) {
@@ -554,7 +558,7 @@ window.__ModuleLoader__.load({
                     title: tr('action.editUser'),
                     'aria-label': tr('action.editUser'),
                     onClick: () => {
-                      openDialog({ kind: 'edit-message', sessionId, boundary, text })
+                      openDialog({ kind: 'edit-message', sessionId, boundary, text, content: data?.content })
                     },
                   },
                   h(EditIcon),
@@ -683,6 +687,15 @@ window.__ModuleLoader__.load({
         const busy = dialog.busy === true
         const editing = dialog.kind === 'edit-message'
         const deleting = dialog.kind === 'delete-session'
+        // The prompt endpoint takes text plus freshly uploaded blocks; the
+        // recorded attachment ids cannot be replayed through it, so any
+        // non-text block would be silently dropped by the resend below.
+        const droppedAttachments =
+          editing && Array.isArray(dialog.content)
+            ? dialog.content.filter((block) => block !== null && typeof block === 'object' && block.type !== 'text')
+                .length
+            : 0
+        const blocked = busy || (deleting && !acked) || (droppedAttachments > 0 && !acked)
         let body
         if (deleting) {
           body = [
@@ -716,11 +729,31 @@ window.__ModuleLoader__.load({
               onKeyDown: (event) => {
                 if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                   event.preventDefault()
-                  submitDialog({ ...dialog, text })
+                  if (!blocked) submitDialog({ ...dialog, text })
                 }
               },
             }),
           ]
+          if (droppedAttachments > 0) {
+            body.push(
+              h(
+                'p',
+                { key: 'attachments', className: 'sed-warning' },
+                props.t('dialog.edit.attachments', { count: droppedAttachments }),
+              ),
+              h(
+                'label',
+                { key: 'attachmentsAck', className: 'sed-ack' },
+                h('input', {
+                  type: 'checkbox',
+                  checked: acked,
+                  disabled: busy,
+                  onChange: (event) => setAcked(event.target.checked),
+                }),
+                h('span', null, props.t('dialog.edit.attachmentsAck')),
+              ),
+            )
+          }
         } else if (dialog.kind === 'regenerate') {
           body = [
             h('p', { key: 'body', className: 'sed-text' }, props.t('dialog.regenerate.body')),
@@ -790,7 +823,7 @@ window.__ModuleLoader__.load({
                 type: 'button',
                 className: 'sed-btn',
                 'data-kind': dialog.kind === 'edit-message' ? 'primary' : 'danger',
-                disabled: busy || (deleting && !acked),
+                disabled: blocked,
                 onClick: () => submitDialog(editing ? { ...dialog, text } : dialog),
               },
               busy ? props.t('common.working') : submitLabel,

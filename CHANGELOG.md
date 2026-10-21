@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **A failed erase no longer leaves a hidden row behind.** Stopping a running
+  session archives it first; if the erase then fails, the row is un-archived
+  and reappears, so "deleted" never means "hidden but still on disk". The
+  un-archive is skipped when the directory is actually gone.
+- **`/session-editor delete` requires `--confirm`.** A typed command has no
+  dialog to tick, so the flag is its acknowledgement: without it the command
+  returns the usage line and touches nothing. The menu and the replace flows
+  pass it automatically.
+- **Editing a message with attachments warns instead of dropping them
+  silently.** The prompt endpoint only accepts freshly uploaded content, and a
+  recorded attachment id cannot be replayed into it, so the edit dialog now
+  names the attachments and gates the resend behind an acknowledgement.
+- The plugin-list description no longer advertises a seven-day trash; deletion
+  has been permanent since 0.1.2.
 - **Repository renamed to `dsh-session-editor`.** An npm package named
   `dsh-session-toolkit` belongs to an unrelated plugin by another author, so
   the repository no longer shares that name. The package name was already

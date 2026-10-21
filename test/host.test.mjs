@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { apply, __internals } from '../index.js'
 
-const { deleteArtifact } = __internals
+const { deleteArtifact, restoreAfterFailedDelete } = __internals
 const TRASH = 'dsh-session-editor-trash'
 const LOG = 'session.v4.jsonl.zstd'
 
@@ -99,7 +99,7 @@ function run(definition, rawInput, agent) {
     snapshots: [{ header }],
     artifacts: [{ header, path: store.path }],
   })
-  const result = await run(definition, 'delete session-a', { id: 'session-runner' })
+  const result = await run(definition, 'delete session-a --confirm', { id: 'session-runner' })
   assert.equal(result.kind, 'success', JSON.stringify(result))
   assert.match(result.text, /永久删除/)
   assert.equal(
@@ -122,7 +122,7 @@ function run(definition, rawInput, agent) {
     root: store.root,
     snapshots: [{ header: { id: 'session-b', cwd: 'F:\\demo' } }],
   })
-  const result = await run(definition, 'delete session-b', { id: 'session-runner' })
+  const result = await run(definition, 'delete session-b --confirm', { id: 'session-runner' })
   assert.equal(result.kind, 'success', JSON.stringify(result))
   assert.equal(await stat(store.directory).then(() => true, () => false), false)
   await rm(store.base, { recursive: true, force: true })
@@ -139,7 +139,7 @@ function run(definition, rawInput, agent) {
       root: undefined,
       snapshots: [{ header: { id: 'session-c', cwd: 'F:\\demo' } }],
     })
-    const result = await run(definition, 'delete session-c', { id: 'session-runner' })
+    const result = await run(definition, 'delete session-c --confirm', { id: 'session-runner' })
     assert.equal(result.kind, 'error')
     assert.match(result.text, /找不到该会话的磁盘目录/)
     assert.equal(calls.archived.length, 0, 'archived before locating')
@@ -161,7 +161,7 @@ function run(definition, rawInput, agent) {
     snapshots: [{ header }],
     artifacts: [{ header, path: store.path }],
   })
-  const result = await run(definition, 'delete session-sub', { id: 'session-runner' })
+  const result = await run(definition, 'delete session-sub --confirm', { id: 'session-runner' })
   assert.equal(result.kind, 'success', JSON.stringify(result))
   assert.equal(await stat(store.directory).then(() => true, () => false), false, 'subagent directory survived')
   assert.equal(calls.archived.length, 1)
@@ -178,7 +178,7 @@ function run(definition, rawInput, agent) {
     snapshots: [{ header }, forkChild, { header: { id: 'session-sub', parentSession: 'session-parent', origin: 'subagent' } }],
     artifacts: [{ header, path: store.path }],
   })
-  const result = await run(definition, 'delete session-parent', { id: 'session-runner' })
+  const result = await run(definition, 'delete session-parent --confirm', { id: 'session-runner' })
   assert.equal(result.kind, 'error')
   assert.match(result.text, /子代理会话引用/)
   assert.equal(calls.archived.length, 0)
@@ -195,7 +195,7 @@ function run(definition, rawInput, agent) {
     artifacts: [{ header: { id: 'session-self' }, path: store.path }],
     agents: [['session-self', live]],
   })
-  const result = await run(definition, 'delete session-self', { id: 'session-self' })
+  const result = await run(definition, 'delete session-self --confirm', { id: 'session-self' })
   assert.equal(result.kind, 'success')
   assert.match(result.text, /正在永久删除/)
   setTimeout(() => {
@@ -226,7 +226,7 @@ function run(definition, rawInput, agent) {
     artifacts: [{ header: { id: 'session-running' }, path: store.path }],
     agents: [['session-running', live]],
   })
-  const result = await run(definition, 'delete session-running', { id: 'session-runner' })
+  const result = await run(definition, 'delete session-running --confirm', { id: 'session-runner' })
   assert.equal(result.kind, 'success', JSON.stringify(result))
   assert.equal(idleResolved, true)
   // First archive stops the work; the second one hides the row after the file erase.
@@ -247,7 +247,7 @@ function run(definition, rawInput, agent) {
     snapshots: [{ header }],
     artifacts: [{ header, path: store.path }],
   })
-  const result = await run(ctxHolder.definition, 'delete session-order', { id: 'session-runner' })
+  const result = await run(ctxHolder.definition, 'delete session-order --confirm', { id: 'session-runner' })
   assert.equal(result.kind, 'success', JSON.stringify(result))
   assert.deepEqual(ctxHolder.calls.archived, [['session-order', undefined]])
   assert.equal(await stat(store.directory).then(() => true, () => false), false)
@@ -257,7 +257,7 @@ function run(definition, rawInput, agent) {
 /** Test 9: an id that could escape the sessions root is refused. */
 {
   const { calls, definition } = makeContext({ root: undefined, snapshots: [] })
-  const result = await run(definition, 'delete ..\\..\\evil', { id: 'session-runner' })
+  const result = await run(definition, 'delete ..\\..\\evil --confirm', { id: 'session-runner' })
   assert.equal(result.kind, 'error')
   assert.equal(calls.archived.length, 0)
 }
@@ -283,6 +283,55 @@ function run(definition, rawInput, agent) {
   assert.equal(await stat(store.directory).then(() => true, () => false), true)
   await rm(store.base, { recursive: true, force: true })
   await rm(otherBase, { recursive: true, force: true })
+}
+
+/** Test 12: an unconfirmed command is a no-op — nothing is read, stopped or erased. */
+{
+  const store = await makeStore('session-unconfirmed')
+  const { calls, definition } = makeContext({
+    root: store.root,
+    snapshots: [{ header: { id: 'session-unconfirmed' } }],
+    artifacts: [{ header: { id: 'session-unconfirmed' }, path: store.path }],
+  })
+  const result = await run(definition, 'delete session-unconfirmed', { id: 'session-runner' })
+  assert.equal(result.kind, 'error')
+  assert.match(result.text, /--confirm/)
+  assert.equal(calls.archived.length, 0, 'archived without confirmation')
+  assert.equal(calls.flushed, 0, 'flushed without confirmation')
+  assert.equal(await stat(store.directory).then(() => true, () => false), true, 'directory was removed')
+  await rm(store.base, { recursive: true, force: true })
+}
+
+/** Test 13: a failed erase brings back a row that was archived only to stop the Session. */
+{
+  const store = await makeStore('session-restore')
+  const archived = []
+  const ctx = {
+    get: (name) =>
+      name === 'workspaceRegistry'
+        ? {
+            unarchiveSession: async (id) => {
+              archived.push(id)
+            },
+          }
+        : undefined,
+  }
+  const artifact = { path: store.path, root: store.root }
+
+  // The log is still on disk: the row must come back.
+  await restoreAfterFailedDelete(ctx, 'session-restore', artifact, true)
+  assert.deepEqual(archived, ['session-restore'])
+
+  // Nothing was archived to stop it: nothing to restore.
+  await restoreAfterFailedDelete(ctx, 'session-restore', artifact, false)
+  assert.deepEqual(archived, ['session-restore'])
+
+  // The directory is gone: the Session really was deleted, so its row must stay hidden.
+  await rm(store.directory, { recursive: true, force: true })
+  await restoreAfterFailedDelete(ctx, 'session-restore', artifact, true)
+  assert.deepEqual(archived, ['session-restore'])
+
+  await rm(store.base, { recursive: true, force: true })
 }
 
 console.log('session-editor host tests OK')

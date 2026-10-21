@@ -138,7 +138,7 @@ assert.equal(prompt[1].content[0].text, 'hello')
 assert.equal(prompt[1].sessionId, 'session-child')
 const open = calls.find(([kind]) => kind === 'open')
 assert.deepEqual(open, ['open', 'session-child'])
-const discard = calls.find(([kind, args]) => kind === 'execute' && args[1] === '/session-editor delete session-parent')
+const discard = calls.find(([kind, args]) => kind === 'execute' && args[1] === '/session-editor delete session-parent --confirm')
 assert.ok(discard, 'source session was not deleted')
 assert.equal(discard[1][0], 'session-parent')
 
@@ -203,5 +203,53 @@ assert.equal(ackLabel.children[0].props.checked, false)
 const deleteFooter = deleteContent.children.find((child) => child && child.props && child.props.className === 'sed-footer')
 const confirmButton = deleteFooter.children[1]
 assert.equal(confirmButton.props.disabled, true, 'confirm enabled before acknowledgement')
+
+/** Editing a message that carries attachments warns, and gates the resend. */
+{
+  let bubble
+  const attached = userReg.component({
+    node: {
+      data: {
+        content: [
+          { type: 'text', text: 'look at this' },
+          { type: 'image', attachment: { id: 'att-1' } },
+        ],
+        time: 2,
+      },
+      location: { step: { start: { seq: 4 } } },
+      seq: 6,
+    },
+    sessionId: 'session-parent',
+    t,
+    renderFactorySlot: (name, props) => {
+      bubble = props
+      return { type: 'div', props: {}, children: [] }
+    },
+  })
+  assert.equal(bubble.content.attachments.length, 1, 'attachment was not shown in the bubble')
+  attached.children[1].children.filter(Boolean)[1].props.onClick()
+
+  const attachedView = overlay({ t }).children[0].children[0]
+  assert.equal(attachedView.props.dialog.kind, 'edit-message')
+  assert.equal(attachedView.props.dialog.text, 'look at this')
+  const attachedContent = attachedView.type(attachedView.props)
+  const warning = attachedContent.children.find(
+    (child) => child && child.props && child.props.className === 'sed-warning',
+  )
+  assert.ok(warning, 'attachment-loss warning missing')
+  assert.match(warning.children[0], /dialog\.edit\.attachments/)
+  const attachedAck = attachedContent.children.find(
+    (child) => child && child.props && child.props.className === 'sed-ack',
+  )
+  assert.ok(attachedAck, 'attachment-loss acknowledgement missing')
+  const attachedFooter = attachedContent.children.find(
+    (child) => child && child.props && child.props.className === 'sed-footer',
+  )
+  assert.equal(
+    attachedFooter.children[1].props.disabled,
+    true,
+    'resend enabled while attachments would be dropped unacknowledged',
+  )
+}
 
 console.log('session-editor client tests OK')

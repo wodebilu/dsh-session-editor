@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Session Editor",
-    "description": "Delete sessions safely (trash with retention), regenerate or edit a turn, and edit your own input."
+    "description": "Delete sessions permanently (no undo — archive instead if you want to keep them), regenerate or edit a turn, and edit your own input."
   }
 }
